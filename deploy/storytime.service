@@ -1,0 +1,24 @@
+[Unit]
+Description=Storytime Gunicorn Service
+After=network.target
+
+[Service]
+User=nobody
+Group=nogroup
+WorkingDirectory=/srv/storytime
+EnvironmentFile=/srv/storytime/.env
+ExecStart=/srv/storytime/venv/bin/gunicorn \
+    --workers 2 \
+    --bind unix:/run/storytime/storytime.sock \
+    --access-logfile /var/log/storytime/access.log \
+    --error-logfile /var/log/storytime/error.log \
+    app:app
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+PrivateTmp=true
+RuntimeDirectory=storytime
+LogsDirectory=storytime
+
+[Install]
+WantedBy=multi-user.target
