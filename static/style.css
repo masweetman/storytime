@@ -252,11 +252,11 @@ body {
 }
 
 .story-container {
-    max-width: 900px;
+    max-width: 1100px;
     margin: 0 auto;
     background: white;
     border-radius: 30px;
-    padding: 40px;
+    padding: 40px 50px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 
@@ -277,11 +277,16 @@ body {
 }
 
 .story-content {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 40px;
     margin-bottom: 30px;
 }
 
 .story-text-section {
-    margin-bottom: 30px;
+    flex: 1 1 0;
+    min-width: 0;
 }
 
 .story-text {
@@ -296,9 +301,13 @@ body {
 
 /* Story Images */
 .story-images {
+    flex: 0 0 380px;
     display: flex;
-    justify-content: center;
-    margin-bottom: 30px;
+    flex-direction: column;
+    gap: 20px;
+    align-self: flex-start;
+    position: sticky;
+    top: 20px;
 }
 
 .story-image {
@@ -307,7 +316,6 @@ body {
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
     background: #f5f5f5;
     min-height: 300px;
-    max-width: 600px;
     width: 100%;
     display: flex;
     align-items: center;
@@ -412,15 +420,92 @@ body {
     display: none !important;
 }
 
-/* Responsive Design */
-@media (max-width: 768px) {
+/* ===== iPad optimised (768px – 1024px) ===== */
+@media (min-width: 768px) and (max-width: 1024px) {
+    body {
+        padding: 24px 20px;
+    }
+
+    .story-container {
+        padding: 36px 40px;
+        border-radius: 24px;
+    }
+
+    .story-header h1 {
+        font-size: 40px;
+    }
+
+    .story-content {
+        gap: 32px;
+    }
+
+    .story-images {
+        flex: 0 0 320px;
+    }
+
+    .story-text {
+        font-size: 20px;
+        line-height: 1.9;
+    }
+
+    .story-controls {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .control-button.primary {
+        grid-column: 1 / -1;
+    }
+
+    .container {
+        padding: 32px 36px;
+        border-radius: 24px;
+    }
+
+    .header h1 {
+        font-size: 42px;
+    }
+
+    .button-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 18px;
+    }
+
+    .color-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    .choice-btn {
+        font-size: 20px;
+        padding: 22px;
+    }
+
+    .generate-button {
+        font-size: 26px;
+        padding: 22px;
+    }
+}
+
+/* ===== Small phones (< 768px) ===== */
+@media (max-width: 767px) {
     .container, .story-container {
         padding: 20px;
         border-radius: 20px;
     }
 
     .header h1, .story-header h1 {
-        font-size: 32px;
+        font-size: 30px;
+    }
+
+    /* Stack text above image on small screens */
+    .story-content {
+        flex-direction: column;
+        gap: 24px;
+    }
+
+    .story-images {
+        flex: none;
+        width: 100%;
+        position: static;
     }
 
     .button-grid {

@@ -106,8 +106,8 @@
 
                 // Use Web Speech API
                 const utterance = new SpeechSynthesisUtterance(storyText);
-                utterance.rate = 0.9; // Slightly slower for kids
-                utterance.pitch = 1;
+                utterance.rate = 0.8; // Slightly slower for kids
+                utterance.pitch = 1.2;
                 utterance.volume = 1;
 
                 utterance.onend = () => {

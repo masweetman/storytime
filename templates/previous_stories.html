@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📚 Previous Stories</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* ── Previous Stories page ── */
+        .stories-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 24px;
+            margin-top: 10px;
+        }
+
+        .story-card {
+            background: #f8f9ff;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.15);
+            border: 2px solid #e8ecff;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .story-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+
+        .story-card-image {
+            width: 100%;
+            aspect-ratio: 3 / 2;
+            object-fit: cover;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+        }
+
+        .story-card-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .story-card-image.no-image {
+            min-height: 160px;
+        }
+
+        .story-card-body {
+            padding: 20px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .story-card-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .meta-tag {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 20px;
+            padding: 4px 12px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .story-card-excerpt {
+            font-size: 15px;
+            line-height: 1.6;
+            color: #555;
+            flex: 1;
+            /* Clamp to 4 lines */
+            display: -webkit-box;
+            -webkit-line-clamp: 4;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .story-card-date {
+            font-size: 12px;
+            color: #aaa;
+            margin-top: auto;
+        }
+
+        /* Modal overlay for reading the full story */
+        .story-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.55);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .story-modal.hidden { display: none; }
+
+        .story-modal-inner {
+            background: white;
+            border-radius: 24px;
+            max-width: 860px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .story-modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 24px 30px;
+            border-radius: 24px 24px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .story-modal-header h2 {
+            margin: 0;
+            font-size: 26px;
+        }
+
+        .story-modal-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 32px;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0;
+            flex-shrink: 0;
+        }
+
+        .story-modal-body {
+            display: flex;
+            flex-direction: row;
+            gap: 32px;
+            padding: 30px;
+            align-items: flex-start;
+        }
+
+        .story-modal-text-col {
+            flex: 1 1 0;
+            min-width: 0;
+        }
+
+        .story-modal-image-col {
+            flex: 0 0 280px;
+            position: sticky;
+            top: 20px;
+        }
+
+        .story-modal-image-col img {
+            width: 100%;
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        }
+
+        .story-modal-text {
+            font-size: 19px;
+            line-height: 1.85;
+            color: #333;
+            background: #f8f9ff;
+            padding: 24px;
+            border-radius: 15px;
+            border-left: 5px solid #667eea;
+            white-space: pre-wrap;
+        }
+
+        .story-modal-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #aaa;
+        }
+
+        .empty-state .empty-icon {
+            font-size: 72px;
+            margin-bottom: 20px;
+        }
+
+        .empty-state p {
+            font-size: 20px;
+        }
+
+        /* iPad tweaks */
+        @media (min-width: 768px) and (max-width: 1024px) {
+            .stories-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        /* Phone tweaks */
+        @media (max-width: 767px) {
+            .stories-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .story-modal-body {
+                flex-direction: column;
+            }
+
+            .story-modal-image-col {
+                flex: none;
+                width: 100%;
+                position: static;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container" style="max-width: 1100px;">
+        <div class="header">
+            <div class="header-top">
+                <a href="/" class="back-button" title="Home">🏠</a>
+                <h1>📚 Previous Stories</h1>
+                <a href="/settings" class="settings-button" title="Settings">⚙️</a>
+            </div>
+            <p class="subtitle">
+                {% if stories %}
+                    {{ stories|length }} stor{{ 'y' if stories|length == 1 else 'ies' }} saved
+                {% else %}
+                    No stories yet — go make one!
+                {% endif %}
+            </p>
+        </div>
+
+        {% if stories %}
+        <div class="stories-grid">
+            {% for s in stories %}
+            <div class="story-card" onclick="openStory({{ s.id }})">
+                <div class="story-card-image {% if not s.image_path %}no-image{% endif %}">
+                    {% if s.image_path %}
+                        <img src="{{ s.image_path }}" alt="Story illustration" loading="lazy"
+                             onerror="this.parentElement.classList.add('no-image'); this.remove(); this.parentElement.textContent='📖';">
+                    {% else %}
+                        📖
+                    {% endif %}
+                </div>
+                <div class="story-card-body">
+                    <div class="story-card-meta">
+                        <span class="meta-tag">{{ s.character }}</span>
+                        <span class="meta-tag">{{ s.setting }}</span>
+                        <span class="meta-tag" style="background: {{ colour_map.get(s.colour, 'linear-gradient(135deg,#667eea,#764ba2)') }}">{{ s.colour }}</span>
+                    </div>
+                    <p class="story-card-excerpt">{{ s.story_text }}</p>
+                    <p class="story-card-date">{{ s.created_at }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">📖</div>
+            <p>No stories saved yet.</p>
+            <br>
+            <a href="/" class="generate-button" style="display:inline-block;width:auto;padding:18px 40px;text-decoration:none;font-size:22px;">
+                ✨ Create Your First Story
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Full-story modal -->
+    <div class="story-modal hidden" id="story-modal" onclick="closeStoryIfBackdrop(event)">
+        <div class="story-modal-inner">
+            <div class="story-modal-header">
+                <h2 id="modal-title">📖 Your Story</h2>
+                <button class="story-modal-close" onclick="closeStory()">✕</button>
+            </div>
+            <div class="story-modal-body" id="modal-body">
+                <!-- filled by JS -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Embed all story data from the server
+        const ALL_STORIES = {{ stories_json | safe }};
+
+        function openStory(id) {
+            const s = ALL_STORIES.find(x => x.id === id);
+            if (!s) return;
+
+            document.getElementById('modal-title').textContent =
+                `📖 A ${s.character} in a ${s.setting}`;
+
+            const imgHtml = s.image_path
+                ? `<div class="story-modal-image-col">
+                       <img src="${s.image_path}" alt="Story illustration"
+                            onerror="this.parentElement.remove();">
+                   </div>`
+                : '';
+
+            document.getElementById('modal-body').innerHTML = `
+                <div class="story-modal-text-col">
+                    <div class="story-modal-meta">
+                        <span class="meta-tag">${s.character}</span>
+                        <span class="meta-tag">${s.setting}</span>
+                        <span class="meta-tag">${s.colour}</span>
+                    </div>
+                    <p class="story-modal-text">${escHtml(s.story_text)}</p>
+                    <p class="story-card-date" style="margin-top:12px">${s.created_at}</p>
+                </div>
+                ${imgHtml}
+            `;
+
+            document.getElementById('story-modal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeStory() {
+            document.getElementById('story-modal').classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        function closeStoryIfBackdrop(e) {
+            if (e.target === document.getElementById('story-modal')) closeStory();
+        }
+
+        function escHtml(str) {
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeStory();
+        });
+    </script>
+</body>
+</html>

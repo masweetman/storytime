@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌟 Magical Storybook Generator 🌟</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-top">
+                <h1>✨ Your Magical Bedtime Story ✨</h1>
+                <a href="/settings" class="settings-button" title="Settings">⚙️</a>
+            </div>
+            <p class="subtitle">Now pick a place for your adventure!</p>
+        </div>
+
+        <div class="picker-section">
+            <!-- Setting Selection -->
+            <div class="picker-group">
+                <h2>🏰 Pick a Place</h2>
+                <div class="button-grid">
+                    <button class="choice-btn" data-type="setting" data-value="enchanted forest with tall trees">🌲 Enchanted Forest</button>
+                    <button class="choice-btn" data-type="setting" data-value="outer space with twinkling stars">🌌 Outer Space</button>
+                    <button class="choice-btn" data-type="setting" data-value="underwater kingdom with coral">🌊 Underwater</button>
+                    <button class="choice-btn" data-type="setting" data-value="cozy village with cottages">🏘️ Cozy Village</button>
+                    <button class="choice-btn" data-type="setting" data-value="magical castle with towers">🏰 Magic Castle</button>
+                    <button class="choice-btn" data-type="setting" data-value="sunny meadow with flowers">🌻 Sunny Meadow</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const character = new URLSearchParams(window.location.search).get('character');
+
+        document.querySelectorAll('.choice-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const setting = btn.dataset.value;
+                window.location.href = `/colors?character=${encodeURIComponent(character)}&setting=${encodeURIComponent(setting)}`;
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌟 Magical Storybook Generator 🌟</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-top">
+                <h1>✨ Your Magical Bedtime Story ✨</h1>
+                <a href="/settings" class="settings-button" title="Settings">⚙️</a>
+            </div>
+            <p class="subtitle">Last step — pick your favorite color!</p>
+        </div>
+
+        <div class="picker-section">
+            <!-- Color Selection -->
+            <div class="picker-group">
+                <h2>🎨 Pick Your Favorite Color</h2>
+                <div class="color-grid">
+                    <button class="color-btn" data-value="red" style="background-color: #FF6B6B; color: white;">🔴 Red</button>
+                    <button class="color-btn" data-value="blue" style="background-color: #4ECDC4; color: white;">🔵 Blue</button>
+                    <button class="color-btn" data-value="yellow" style="background-color: #FFD93D; color: #333;">🟡 Yellow</button>
+                    <button class="color-btn" data-value="green" style="background-color: #6BCB77; color: white;">🟢 Green</button>
+                    <button class="color-btn" data-value="purple" style="background-color: #A78BFA; color: white;">🟣 Purple</button>
+                    <button class="color-btn" data-value="pink" style="background-color: #FF97B7; color: white;">🌸 Pink</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading state -->
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>✨ Creating your magical story...</p>
+        </div>
+
+        <!-- Error message -->
+        <div id="error" class="error-message hidden"></div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const character = params.get('character');
+        const setting = params.get('setting');
+
+        const loadingDiv = document.getElementById('loading');
+        const errorDiv = document.getElementById('error');
+
+        document.querySelectorAll('.color-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const colour = btn.dataset.value;
+
+                // Disable all buttons and show loading
+                document.querySelectorAll('.color-btn').forEach(b => b.disabled = true);
+                loadingDiv.classList.remove('hidden');
+                errorDiv.classList.add('hidden');
+
+                try {
+                    const response = await fetch('/api/generate-story', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ character, setting, colour })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        sessionStorage.setItem('storyData', JSON.stringify({
+                            story: data.story,
+                            images: data.images,
+                            character: data.character,
+                            setting: data.setting,
+                            colour: data.colour
+                        }));
+                        window.location.href = '/story';
+                    } else {
+                        showError(data.error);
+                        document.querySelectorAll('.color-btn').forEach(b => b.disabled = false);
+                    }
+                } catch (err) {
+                    showError('Something went wrong. Is Ollama running?');
+                    console.error('Error:', err);
+                    document.querySelectorAll('.color-btn').forEach(b => b.disabled = false);
+                } finally {
+                    loadingDiv.classList.add('hidden');
+                }
+            });
+        });
+
+        function showError(message) {
+            errorDiv.textContent = '❌ ' + message;
+            errorDiv.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
