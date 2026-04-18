@@ -1,18 +1,33 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory, abort
+from flask import Flask, render_template, request, jsonify, send_from_directory, abort, session, redirect, url_for, make_response
 import json
 import requests
 import re
 import os
 import uuid
+import secrets
+import functools
 from urllib.parse import quote as url_quote
 from dotenv import load_dotenv
 from pathlib import Path
 import sqlite3
 from contextlib import contextmanager
+from datetime import timedelta
 
 load_dotenv()
 
 app = Flask(__name__, instance_path=str(Path(__file__).parent / 'instance'))
+
+# ─── Secret key (persisted so sessions survive restarts) ──────────────────────
+_secret_key_file = Path(app.instance_path) / 'secret_key'
+_secret_key_file.parent.mkdir(parents=True, exist_ok=True)
+if _secret_key_file.exists():
+    app.secret_key = _secret_key_file.read_bytes()
+else:
+    app.secret_key = secrets.token_bytes(32)
+    _secret_key_file.write_bytes(app.secret_key)
+
+# Sessions last 10 years — effectively a non-expiring cookie
+app.permanent_session_lifetime = timedelta(days=3650)
 
 # Database configuration — stored in the instance folder
 DB_PATH = Path(app.instance_path) / 'storytime.db'
@@ -26,6 +41,7 @@ IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 DEFAULT_SETTINGS = {
     'ollama_host': 'http://localhost:11434',
     'ollama_model': 'gemma2:2b',
+    'password': '',
     'story_prompt': '''Write a short, gentle bedtime story for a 3-year-old child (about 150 words).
 
 Main character: A {character}
@@ -130,6 +146,33 @@ def get_story_by_id(story_id):
 # Initialize database on startup
 init_db()
 
+# ─── Auth helpers ──────────────────────────────────────────────────────────────
+
+def is_authenticated():
+    """Return True if no password is set, or if the session is authenticated."""
+    password = get_setting('password', '')
+    if not password:
+        return True
+    return session.get('authenticated') is True
+
+def require_auth(f):
+    """Decorator: redirect to /login for page routes if not authenticated."""
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        if not is_authenticated():
+            return redirect(url_for('login', next=request.path))
+        return f(*args, **kwargs)
+    return decorated
+
+def require_auth_api(f):
+    """Decorator: return 401 JSON for API routes if not authenticated."""
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        if not is_authenticated():
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        return f(*args, **kwargs)
+    return decorated
+
 # Ollama configuration - read from database
 OLLAMA_HOST = get_setting('ollama_host', 'http://localhost:11434')
 OLLAMA_MODEL = get_setting('ollama_model', 'gemma2:2b')
@@ -137,19 +180,44 @@ OLLAMA_API = f"{OLLAMA_HOST}/api/generate"
 
 # ─── Routes ────────────────────────────────────────────────────────────────────
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        entered = request.form.get('password', '')
+        stored  = get_setting('password', '')
+        if not stored or entered == stored:
+            session.permanent = True
+            session['authenticated'] = True
+            next_url = request.form.get('next') or url_for('index')
+            return redirect(next_url)
+        return render_template('login.html', error='Incorrect password', next=request.form.get('next', ''))
+    # GET — if no password set or already authenticated, skip login
+    if is_authenticated():
+        return redirect(url_for('index'))
+    return render_template('login.html', next=request.args.get('next', ''))
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
 @app.route('/')
+@require_auth
 def index():
     return render_template('index.html')
 
 @app.route('/places')
+@require_auth
 def places():
     return render_template('places.html')
 
 @app.route('/colors')
+@require_auth
 def colors():
     return render_template('colors.html')
 
 @app.route('/story')
+@require_auth
 def story():
     return render_template('story.html')
 
@@ -170,11 +238,13 @@ COLOUR_MAP = {
 }
 
 @app.route('/images/<path:filename>')
+@require_auth
 def serve_image(filename):
     """Serve story images stored in instance/images/ (outside the static folder)."""
     return send_from_directory(IMAGES_DIR, filename)
 
 @app.route('/previous-stories')
+@require_auth
 def previous_stories():
     stories = get_all_stories()
     return render_template(
@@ -185,17 +255,23 @@ def previous_stories():
     )
 
 @app.route('/settings')
+@require_auth
 def settings_page():
     return render_template('settings.html')
 
 # ─── API ───────────────────────────────────────────────────────────────────────
 
 @app.route('/api/settings', methods=['GET'])
+@require_auth_api
 def get_settings():
-    """Get all settings"""
-    return jsonify(get_all_settings())
+    """Get all settings (password is never returned to the client)"""
+    s = get_all_settings()
+    s.pop('password', None)          # never expose the stored password
+    s['password_set'] = bool(get_setting('password', ''))
+    return jsonify(s)
 
 @app.route('/api/settings', methods=['POST'])
+@require_auth_api
 def update_settings():
     """Update settings"""
     data = request.json
@@ -219,11 +295,13 @@ def update_settings():
     return jsonify({'success': True, 'message': 'Settings updated successfully'})
 
 @app.route('/api/config', methods=['GET'])
+@require_auth_api
 def get_config():
     """Get current Ollama configuration"""
     return jsonify({'ollama_host': OLLAMA_HOST, 'ollama_model': OLLAMA_MODEL})
 
 @app.route('/api/config', methods=['POST'])
+@require_auth_api
 def set_config():
     """Update Ollama configuration"""
     global OLLAMA_HOST, OLLAMA_API
@@ -248,11 +326,13 @@ def set_config():
         return jsonify({'success': False, 'error': f'Error: {str(e)}'}), 500
 
 @app.route('/api/stories')
+@require_auth_api
 def api_stories():
     """Return all saved stories as JSON"""
     return jsonify(get_all_stories())
 
 @app.route('/api/stories/<int:story_id>')
+@require_auth_api
 def api_story(story_id):
     """Return a single saved story as JSON"""
     story = get_story_by_id(story_id)
@@ -294,6 +374,7 @@ def download_and_save_image(prompt):
         return None
 
 @app.route('/api/generate-story', methods=['POST'])
+@require_auth_api
 def generate_story():
     """Generate a story using Ollama based on user selections"""
     data = request.json

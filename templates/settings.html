@@ -17,6 +17,38 @@
         </div>
 
         <div class="settings-panel">
+            <!-- Password Section -->
+            <div class="settings-section">
+                <h2>🔒 Password Protection</h2>
+
+                <div class="settings-group">
+                    <label for="new-password">New Password:</label>
+                    <input
+                        type="password"
+                        id="new-password"
+                        placeholder="Leave blank to disable password protection"
+                        autocomplete="new-password"
+                    >
+                    <p class="hint">If set, a password will be required to access the app. Leave blank to remove password protection.</p>
+                </div>
+
+                <div class="settings-group">
+                    <label for="confirm-password">Confirm Password:</label>
+                    <input
+                        type="password"
+                        id="confirm-password"
+                        placeholder="Repeat new password"
+                        autocomplete="new-password"
+                    >
+                </div>
+
+                <div id="password-status" class="status-message hidden"></div>
+
+                <button id="save-password-btn" class="settings-button primary">
+                    🔒 Save Password
+                </button>
+            </div>
+
             <!-- Ollama Settings Section -->
             <div class="settings-section">
                 <h2>🤖 Ollama Configuration</h2>
@@ -81,6 +113,55 @@
     </div>
 
     <script>
+        const newPasswordInput  = document.getElementById('new-password');
+        const confirmPasswordInput = document.getElementById('confirm-password');
+        const savePasswordBtn   = document.getElementById('save-password-btn');
+        const passwordStatus    = document.getElementById('password-status');
+
+        // Save password
+        savePasswordBtn.addEventListener('click', async () => {
+            const pw  = newPasswordInput.value;
+            const pw2 = confirmPasswordInput.value;
+
+            if (pw !== pw2) {
+                showPasswordStatus('❌ Passwords do not match', 'error');
+                return;
+            }
+
+            savePasswordBtn.disabled = true;
+            showPasswordStatus('Saving...', 'loading');
+
+            try {
+                const response = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: pw })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    newPasswordInput.value = '';
+                    confirmPasswordInput.value = '';
+                    if (pw) {
+                        showPasswordStatus('✅ Password set successfully!', 'success');
+                    } else {
+                        showPasswordStatus('✅ Password removed — app is now open access', 'success');
+                    }
+                } else {
+                    showPasswordStatus('❌ ' + data.error, 'error');
+                }
+            } catch (error) {
+                showPasswordStatus('❌ Failed to save password', 'error');
+            } finally {
+                savePasswordBtn.disabled = false;
+            }
+        });
+
+        function showPasswordStatus(message, type) {
+            passwordStatus.classList.remove('hidden', 'success', 'error', 'loading');
+            passwordStatus.textContent = message;
+            passwordStatus.classList.add(type);
+        }
+
         const ollamaHostInput = document.getElementById('ollama-host');
         const ollamaModelInput = document.getElementById('ollama-model');
         const storyPromptInput = document.getElementById('story-prompt');
