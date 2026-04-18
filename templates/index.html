@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Storybook">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
     <title>🌟 Magical Storybook Generator 🌟</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
@@ -21,7 +25,7 @@
                     border-radius:20px;
                     border:2px solid #667eea;
                     color:#667eea;
-                    font-family:'Comic Sans MS',cursive;
+                    font-family:'ABeeZee',sans-serif;
                     font-weight:bold;
                     font-size:16px;
                     text-decoration:none;

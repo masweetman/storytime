@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Storybook">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
     <title>📚 Previous Stories</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
@@ -120,6 +124,36 @@
             box-shadow: 0 20px 60px rgba(0,0,0,0.35);
             display: flex;
             flex-direction: column;
+        }
+
+        .story-modal-controls {
+            display: flex;
+            gap: 12px;
+            padding: 16px 30px 24px;
+            flex-wrap: wrap;
+            border-top: 1px solid #e8ecff;
+        }
+
+        .story-modal-controls .control-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .story-modal-controls .control-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+        }
+
+        .story-modal-controls .control-button.hidden {
+            display: none;
         }
 
         .story-modal-header {
@@ -295,6 +329,17 @@
             <div class="story-modal-body" id="modal-body">
                 <!-- filled by JS -->
             </div>
+            <div class="story-modal-controls">
+                <button id="modal-read-aloud-btn" class="control-button">
+                    🔊 Read to Me
+                </button>
+                <button id="modal-pause-btn" class="control-button hidden">
+                    ⏹️ Stop
+                </button>
+                <button id="modal-print-btn" class="control-button">
+                    🖨️ Print Story
+                </button>
+            </div>
         </div>
     </div>
 
@@ -302,9 +347,54 @@
         // Embed all story data from the server
         const ALL_STORIES = {{ stories_json | safe }};
 
+        // ── Text-to-speech state ──
+        let modalIsReading = false;
+        let currentStoryText = '';
+
+        const modalReadBtn  = document.getElementById('modal-read-aloud-btn');
+        const modalPauseBtn = document.getElementById('modal-pause-btn');
+
+        modalReadBtn.addEventListener('click', () => {
+            if (!modalIsReading && currentStoryText) {
+                modalIsReading = true;
+                modalReadBtn.classList.add('hidden');
+                modalPauseBtn.classList.remove('hidden');
+
+                const utterance = new SpeechSynthesisUtterance(currentStoryText);
+                utterance.rate   = 0.8;
+                utterance.pitch  = 1.2;
+                utterance.volume = 1;
+
+                utterance.onend = () => {
+                    modalIsReading = false;
+                    modalReadBtn.classList.remove('hidden');
+                    modalPauseBtn.classList.add('hidden');
+                };
+
+                speechSynthesis.speak(utterance);
+            }
+        });
+
+        modalPauseBtn.addEventListener('click', stopSpeech);
+
+        document.getElementById('modal-print-btn').addEventListener('click', () => {
+            window.print();
+        });
+
+        function stopSpeech() {
+            speechSynthesis.cancel();
+            modalIsReading = false;
+            modalReadBtn.classList.remove('hidden');
+            modalPauseBtn.classList.add('hidden');
+        }
+
         function openStory(id) {
             const s = ALL_STORIES.find(x => x.id === id);
             if (!s) return;
+
+            // Stop any ongoing speech before opening a new story
+            stopSpeech();
+            currentStoryText = s.story_text;
 
             document.getElementById('modal-title').textContent =
                 `📖 A ${s.character} in a ${s.setting}`;
@@ -334,6 +424,8 @@
         }
 
         function closeStory() {
+            stopSpeech();
+            currentStoryText = '';
             document.getElementById('story-modal').classList.add('hidden');
             document.body.style.overflow = '';
         }
