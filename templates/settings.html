@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚙️ Settings - Storybook Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-top">
+                <h1>⚙️ Settings</h1>
+                <a href="/" class="back-button" title="Back to Stories">🏠</a>
+            </div>
+            <p class="subtitle">Configure your Storybook Generator</p>
+        </div>
+
+        <div class="settings-panel">
+            <!-- Ollama Settings Section -->
+            <div class="settings-section">
+                <h2>🤖 Ollama Configuration</h2>
+                
+                <div class="settings-group">
+                    <label for="ollama-host">Ollama Server URL:</label>
+                    <input 
+                        type="text" 
+                        id="ollama-host" 
+                        placeholder="http://localhost:11434"
+                    >
+                    <p class="hint">Example: http://192.168.1.100:11434</p>
+                </div>
+
+                <div class="settings-group">
+                    <label for="ollama-model">Ollama Model:</label>
+                    <input 
+                        type="text" 
+                        id="ollama-model" 
+                        placeholder="gemma2:2b"
+                    >
+                    <p class="hint">Available models: gemma2:2b, llama2, mistral, neural-chat, etc.</p>
+                </div>
+
+                <button id="test-ollama-btn" class="settings-button secondary">
+                    🔍 Test Connection
+                </button>
+            </div>
+
+            <!-- Story Prompt Section -->
+            <div class="settings-section">
+                <h2>📖 Story Generation Prompt</h2>
+                
+                <div class="settings-group">
+                    <label for="story-prompt">Custom Prompt Template:</label>
+                    <textarea 
+                        id="story-prompt" 
+                        class="prompt-textarea"
+                        placeholder="Write a story..."
+                    ></textarea>
+                    <p class="hint">Use {character}, {setting}, and {colour} as placeholders</p>
+                </div>
+
+                <button id="reset-prompt-btn" class="settings-button secondary">
+                    🔄 Reset to Default
+                </button>
+            </div>
+
+            <!-- Status Messages -->
+            <div id="status-message" class="status-message hidden"></div>
+
+            <!-- Action Buttons -->
+            <div class="settings-footer">
+                <button id="save-settings-btn" class="settings-button primary">
+                    💾 Save Settings
+                </button>
+                <button id="cancel-btn" class="settings-button secondary">
+                    ❌ Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const ollamaHostInput = document.getElementById('ollama-host');
+        const ollamaModelInput = document.getElementById('ollama-model');
+        const storyPromptInput = document.getElementById('story-prompt');
+        const testOllamaBtn = document.getElementById('test-ollama-btn');
+        const resetPromptBtn = document.getElementById('reset-prompt-btn');
+        const saveSettingsBtn = document.getElementById('save-settings-btn');
+        const cancelBtn = document.getElementById('cancel-btn');
+        const statusMessage = document.getElementById('status-message');
+
+        // Load settings on page load
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/settings');
+                const settings = await response.json();
+                
+                ollamaHostInput.value = settings.ollama_host || '';
+                ollamaModelInput.value = settings.ollama_model || '';
+                storyPromptInput.value = settings.story_prompt || '';
+            } catch (error) {
+                showStatus('Failed to load settings', 'error');
+                console.error('Error loading settings:', error);
+            }
+        }
+
+        // Test Ollama connection
+        testOllamaBtn.addEventListener('click', async () => {
+            const host = ollamaHostInput.value.trim();
+            if (!host) {
+                showStatus('Please enter an Ollama host address', 'error');
+                return;
+            }
+
+            testOllamaBtn.disabled = true;
+            showStatus('Testing connection...', 'loading');
+
+            try {
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ollama_host: host })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showStatus('✅ Connection successful!', 'success');
+                } else {
+                    showStatus('❌ ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus('❌ Connection failed', 'error');
+            } finally {
+                testOllamaBtn.disabled = false;
+            }
+        });
+
+        // Reset prompt to default
+        resetPromptBtn.addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/settings');
+                const settings = await response.json();
+                storyPromptInput.value = settings.story_prompt;
+                showStatus('✅ Prompt reset to default', 'success');
+            } catch (error) {
+                showStatus('Failed to reset prompt', 'error');
+            }
+        });
+
+        // Save all settings
+        saveSettingsBtn.addEventListener('click', async () => {
+            const settings = {
+                ollama_host: ollamaHostInput.value.trim(),
+                ollama_model: ollamaModelInput.value.trim(),
+                story_prompt: storyPromptInput.value.trim()
+            };
+
+            if (!settings.ollama_host || !settings.ollama_model || !settings.story_prompt) {
+                showStatus('Please fill in all settings', 'error');
+                return;
+            }
+
+            saveSettingsBtn.disabled = true;
+            showStatus('Saving settings...', 'loading');
+
+            try {
+                const response = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(settings)
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showStatus('✅ Settings saved successfully!', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1500);
+                } else {
+                    showStatus('❌ ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus('❌ Failed to save settings', 'error');
+            } finally {
+                saveSettingsBtn.disabled = false;
+            }
+        });
+
+        // Cancel and go back
+        cancelBtn.addEventListener('click', () => {
+            window.location.href = '/';
+        });
+
+        function showStatus(message, type) {
+            statusMessage.classList.remove('hidden', 'success', 'error', 'loading');
+            statusMessage.textContent = message;
+            statusMessage.classList.add(type);
+        }
+
+        // Load settings when page loads
+        document.addEventListener('DOMContentLoaded', loadSettings);
+    </script>
+</body>
+</html>

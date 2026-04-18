@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌟 Magical Storybook Generator 🌟</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-top">
+                <h1>✨ Your Magical Bedtime Story ✨</h1>
+                <a href="/settings" class="settings-button" title="Settings">⚙️</a>
+            </div>
+            <p class="subtitle">Pick a character, a place, and your favorite colour!</p>
+        </div>
+
+        <div class="picker-section">
+            <!-- Character Selection -->
+            <div class="picker-group">
+                <h2>🦁 Pick a Character</h2>
+                <div class="button-grid">
+                    <button class="choice-btn" data-type="character" data-value="brave dragon">🐉 Dragon</button>
+                    <button class="choice-btn" data-type="character" data-value="fluffy bunny">🐰 Bunny</button>
+                    <button class="choice-btn" data-type="character" data-value="friendly robot">🤖 Robot</button>
+                    <button class="choice-btn" data-type="character" data-value="kind princess">👑 Princess</button>
+                    <button class="choice-btn" data-type="character" data-value="playful dinosaur">🦕 Dinosaur</button>
+                    <button class="choice-btn" data-type="character" data-value="wise owl">🦉 Owl</button>
+                </div>
+            </div>
+
+            <!-- Setting Selection -->
+            <div class="picker-group">
+                <h2>🏰 Pick a Place</h2>
+                <div class="button-grid">
+                    <button class="choice-btn" data-type="setting" data-value="enchanted forest with tall trees">🌲 Enchanted Forest</button>
+                    <button class="choice-btn" data-type="setting" data-value="outer space with twinkling stars">🌌 Outer Space</button>
+                    <button class="choice-btn" data-type="setting" data-value="underwater kingdom with coral">🌊 Underwater</button>
+                    <button class="choice-btn" data-type="setting" data-value="cozy village with cottages">🏘️ Cozy Village</button>
+                    <button class="choice-btn" data-type="setting" data-value="magical castle with towers">🏰 Magic Castle</button>
+                    <button class="choice-btn" data-type="setting" data-value="sunny meadow with flowers">🌻 Sunny Meadow</button>
+                </div>
+            </div>
+
+            <!-- Color Selection -->
+            <div class="picker-group">
+                <h2>🎨 Pick Your Favorite Color</h2>
+                <div class="color-grid">
+                    <button class="color-btn" data-type="colour" data-value="red" style="background-color: #FF6B6B; color: white;">🔴 Red</button>
+                    <button class="color-btn" data-type="colour" data-value="blue" style="background-color: #4ECDC4; color: white;">🔵 Blue</button>
+                    <button class="color-btn" data-type="colour" data-value="yellow" style="background-color: #FFD93D; color: #333;">🟡 Yellow</button>
+                    <button class="color-btn" data-type="colour" data-value="green" style="background-color: #6BCB77; color: white;">🟢 Green</button>
+                    <button class="color-btn" data-type="colour" data-value="purple" style="background-color: #A78BFA; color: white;">🟣 Purple</button>
+                    <button class="color-btn" data-type="colour" data-value="pink" style="background-color: #FF97B7; color: white;">🌸 Pink</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Selection Display -->
+        <div class="selection-display">
+            <p id="character-display">Character: <span>Not picked yet</span></p>
+            <p id="setting-display">Place: <span>Not picked yet</span></p>
+            <p id="colour-display">Color: <span>Not picked yet</span></p>
+        </div>
+
+        <!-- Generate Button -->
+        <button id="generate-btn" class="generate-button" disabled>
+            📖 Generate My Story! 📖
+        </button>
+
+        <!-- Loading state -->
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>✨ Creating your magical story...</p>
+        </div>
+
+        <!-- Error message -->
+        <div id="error" class="error-message hidden"></div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
