@@ -640,6 +640,83 @@ body {
     cursor: not-allowed;
 }
 
+/* Provider Toggle Styles */
+.provider-toggle {
+    display: flex;
+    gap: 15px;
+    margin: 15px 0;
+}
+
+.radio-option {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    padding: 12px 20px;
+    border: 2px solid #ddd;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+    flex: 1;
+    text-align: center;
+    background: white;
+}
+
+.radio-option:hover {
+    border-color: #667eea;
+}
+
+.radio-option input[type="radio"] {
+    margin-right: 10px;
+}
+
+.radio-option input[type="radio"]:checked + .radio-label {
+    color: #667eea;
+    font-weight: bold;
+}
+
+.radio-option input[type="radio"]:checked {
+    accent-color: #667eea;
+}
+
+/* API Key Input Styles */
+.api-key-input {
+    display: flex;
+    gap: 10px;
+}
+
+.api-key-input input {
+    flex: 1;
+}
+
+.toggle-btn {
+    background: #f0f0f0;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    cursor: pointer;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+
+.toggle-btn:hover {
+    background: #e0e0e0;
+}
+
+/* OpenRouter Section Styles */
+.openrouter-section select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.openrouter-section select:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
 .status-message {
     padding: 15px;
     border-radius: 10px;

@@ -53,9 +53,28 @@
                 </button>
             </div>
 
-            <!-- Ollama Settings Section -->
+            <!-- LLM Provider Selection -->
             <div class="settings-section">
-                <h2>🤖 Ollama Configuration</h2>
+                <h2>🤖 LLM Provider</h2>
+                
+                <div class="settings-group">
+                    <label>Choose your story generation provider:</label>
+                    <div class="provider-toggle">
+                        <label class="radio-option">
+                            <input type="radio" name="llm-provider" value="ollama" checked>
+                            <span class="radio-label">🔥 Ollama (Local)</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="llm-provider" value="openrouter">
+                            <span class="radio-label">☁️ OpenRouter (Cloud)</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ollama Settings Section -->
+            <div class="settings-section ollama-section">
+                <h2>🔥 Ollama Configuration</h2>
                 
                 <div class="settings-group">
                     <label for="ollama-host">Ollama Server URL:</label>
@@ -78,6 +97,42 @@
                 </div>
 
                 <button id="test-ollama-btn" class="settings-button secondary">
+                    🔍 Test Connection
+                </button>
+            </div>
+
+            <!-- OpenRouter Settings Section -->
+            <div class="settings-section openrouter-section" style="display: none;">
+                <h2>☁️ OpenRouter Configuration</h2>
+                
+                <div class="settings-group">
+                    <label for="openrouter-api-key">API Key:</label>
+                    <div class="api-key-input">
+                        <input 
+                            type="password" 
+                            id="openrouter-api-key" 
+                            placeholder="sk-or-..."
+                        >
+                        <button type="button" id="toggle-api-key" class="toggle-btn">👁️</button>
+                    </div>
+                    <p class="hint">Get your API key from <a href="https://openrouter.ai/keys" target="_blank">OpenRouter dashboard</a></p>
+                </div>
+
+                <div class="settings-group">
+                    <label for="openrouter-model">Model:</label>
+                    <select id="openrouter-model">
+                        <option value="">Select a model...</option>
+                    </select>
+                    <p class="hint">Choose a model from the dropdown or fetch available models</p>
+                </div>
+
+                <div class="settings-group">
+                    <button id="fetch-models-btn" class="settings-button secondary">
+                        🔄 Fetch Available Models
+                    </button>
+                </div>
+
+                <button id="test-openrouter-btn" class="settings-button secondary">
                     🔍 Test Connection
                 </button>
             </div>
@@ -117,6 +172,7 @@
     </div>
 
     <script>
+        // Password handling
         const newPasswordInput  = document.getElementById('new-password');
         const confirmPasswordInput = document.getElementById('confirm-password');
         const savePasswordBtn   = document.getElementById('save-password-btn');
@@ -166,6 +222,16 @@
             passwordStatus.classList.add(type);
         }
 
+        // LLM Provider elements
+        const providerRadios = document.querySelectorAll('input[name="llm-provider"]');
+        const ollamaSection = document.querySelector('.ollama-section');
+        const openrouterSection = document.querySelector('.openrouter-section');
+        const openrouterApiKeyInput = document.getElementById('openrouter-api-key');
+        const openrouterModelSelect = document.getElementById('openrouter-model');
+        const fetchModelsBtn = document.getElementById('fetch-models-btn');
+        const testOpenrouterBtn = document.getElementById('test-openrouter-btn');
+        const toggleApiKeyBtn = document.getElementById('toggle-api-key');
+        
         const ollamaHostInput = document.getElementById('ollama-host');
         const ollamaModelInput = document.getElementById('ollama-model');
         const storyPromptInput = document.getElementById('story-prompt');
@@ -181,9 +247,32 @@
                 const response = await fetch('/api/settings');
                 const settings = await response.json();
                 
+                // Set provider
+                const selectedProvider = settings.llm_provider || 'ollama';
+                providerRadios.forEach(radio => {
+                    if (radio.value === selectedProvider) {
+                        radio.checked = true;
+                    }
+                });
+                
+                // Show/hide sections based on provider
+                if (selectedProvider === 'ollama') {
+                    ollamaSection.style.display = 'block';
+                    openrouterSection.style.display = 'none';
+                } else {
+                    ollamaSection.style.display = 'none';
+                    openrouterSection.style.display = 'block';
+                }
+                
+                // Populate fields
                 ollamaHostInput.value = settings.ollama_host || '';
                 ollamaModelInput.value = settings.ollama_model || '';
                 storyPromptInput.value = settings.story_prompt || '';
+                
+                // Populate OpenRouter fields if available
+                openrouterApiKeyInput.value = settings.openrouter_api_key_set ? '••••••••••••••••' : '';
+                openrouterModelSelect.value = settings.openrouter_model || '';
+                
             } catch (error) {
                 showStatus('Failed to load settings', 'error');
                 console.error('Error loading settings:', error);
@@ -207,7 +296,6 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ ollama_host: host })
                 });
-
                 const data = await response.json();
                 if (data.success) {
                     showStatus('✅ Connection successful!', 'success');
@@ -218,6 +306,36 @@
                 showStatus('❌ Connection failed', 'error');
             } finally {
                 testOllamaBtn.disabled = false;
+            }
+        });
+
+        // Test OpenRouter connection
+        testOpenrouterBtn.addEventListener('click', async () => {
+            const apiKey = openrouterApiKeyInput.value.trim();
+            if (!apiKey || apiKey === '••••••••••••••••') {
+                showStatus('Please enter a valid OpenRouter API key', 'error');
+                return;
+            }
+            
+            testOpenrouterBtn.disabled = true;
+            showStatus('Testing connection...', 'loading');
+
+            try {
+                const response = await fetch('/api/openrouter/test-connection', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: apiKey })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showStatus('✅ Connection successful!', 'success');
+                } else {
+                    showStatus('❌ ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus('❌ Connection failed', 'error');
+            } finally {
+                testOpenrouterBtn.disabled = false;
             }
         });
 
@@ -233,6 +351,52 @@
             }
         });
 
+        // Fetch OpenRouter models
+        fetchModelsBtn.addEventListener('click', async () => {
+            const apiKey = openrouterApiKeyInput.value.trim();
+            if (!apiKey || apiKey === '••••••••••••••••') {
+                showStatus('Please enter a valid OpenRouter API key', 'error');
+                return;
+            }
+            
+            fetchModelsBtn.disabled = true;
+            showStatus('Fetching models...', 'loading');
+            
+            try {
+                const response = await fetch('/api/openrouter/models', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: apiKey })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    // Populate the model select dropdown
+                    const modelSelect = openrouterModelSelect;
+                    modelSelect.innerHTML = '<option value="">Select a model...</option>';
+                    data.models.forEach(modelId => {
+                        const option = document.createElement('option');
+                        option.value = modelId;
+                        option.textContent = modelId;
+                        modelSelect.appendChild(option);
+                    });
+                    showStatus('✅ Models fetched successfully', 'success');
+                } else {
+                    showStatus('❌ ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus('❌ Failed to fetch models', 'error');
+            } finally {
+                fetchModelsBtn.disabled = false;
+            }
+        });
+
+        // Toggle API key visibility
+        toggleApiKeyBtn.addEventListener('click', () => {
+            const type = openrouterApiKeyInput.getAttribute('type');
+            openrouterApiKeyInput.setAttribute('type', type === 'password' ? 'text' : 'password');
+            toggleApiKeyBtn.textContent = type === 'password' ? '👁️' : '🙈';
+        });
+
         // Save all settings
         saveSettingsBtn.addEventListener('click', async () => {
             const settings = {
@@ -241,8 +405,16 @@
                 story_prompt: storyPromptInput.value.trim()
             };
 
-            if (!settings.ollama_host || !settings.ollama_model || !settings.story_prompt) {
-                showStatus('Please fill in all settings', 'error');
+            // Add provider and OpenRouter fields
+            const provider = document.querySelector('input[name="llm-provider"]:checked').value;
+            if (provider === 'openrouter') {
+                settings.llm_provider = provider;
+                settings.openrouter_api_key = openrouterApiKeyInput.value.trim();
+                settings.openrouter_model = openrouterModelSelect.value;
+            }
+
+            if (!settings.ollama_host && !settings.openrouter_api_key) {
+                showStatus('Please provide at least one LLM provider configuration', 'error');
                 return;
             }
 
@@ -255,7 +427,6 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(settings)
                 });
-
                 const data = await response.json();
                 if (data.success) {
                     showStatus('✅ Settings saved successfully!', 'success');
@@ -275,6 +446,15 @@
         // Cancel and go back
         cancelBtn.addEventListener('click', () => {
             window.location.href = '/';
+        });
+
+        // Show/hide OpenRouter API key
+        openrouterApiKeyInput.addEventListener('input', () => {
+            if (openrouterApiKeyInput.value) {
+                openrouterApiKeyInput.setAttribute('placeholder', 'sk-or-...');
+            } else {
+                openrouterApiKeyInput.setAttribute('placeholder', '');
+            }
         });
 
         function showStatus(message, type) {

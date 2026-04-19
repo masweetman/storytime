@@ -41,6 +41,9 @@ IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 DEFAULT_SETTINGS = {
     'ollama_host': 'http://localhost:11434',
     'ollama_model': 'gemma2:2b',
+    'llm_provider': 'ollama',
+    'openrouter_api_key': '',
+    'openrouter_model': 'openai/gpt-4o-mini',
     'password': '',
     'story_prompt': '''Write a short, gentle bedtime story for a 3-year-old child (about 150 words).
 
@@ -268,6 +271,10 @@ def get_settings():
     s = get_all_settings()
     s.pop('password', None)          # never expose the stored password
     s['password_set'] = bool(get_setting('password', ''))
+    # Add provider and OpenRouter info (mask API key)
+    s['llm_provider'] = get_setting('llm_provider', 'ollama')
+    s['openrouter_model'] = get_setting('openrouter_model', '')
+    s['openrouter_api_key_set'] = bool(get_setting('openrouter_api_key', ''))
     return jsonify(s)
 
 @app.route('/api/settings', methods=['POST'])
@@ -325,6 +332,64 @@ def set_config():
     except Exception as e:
         return jsonify({'success': False, 'error': f'Error: {str(e)}'}), 500
 
+# OpenRouter model list proxy
+# Update the existing models endpoint to accept both GET and POST
+@app.route('/api/openrouter/models', methods=['GET', 'POST'])
+@require_auth_api
+def get_openrouter_models():
+    """Fetch available OpenRouter models using stored API key"""
+    api_key = get_setting('openrouter_api_key', '')
+    if not api_key:
+        return jsonify({'success': False, 'error': 'OpenRouter API key not set'}), 400
+    try:
+        resp = requests.get('https://openrouter.ai/api/v1/models', headers={
+            'Authorization': f'Bearer {api_key}',
+            'HTTP-Referer': 'http://127.0.0.1:5000',
+            'X-Title': 'Storybook Generator'
+        }, timeout=10)
+        if resp.status_code != 200:
+            return jsonify({'success': False, 'error': f'OpenRouter returned {resp.status_code}'}), resp.status_code
+        data = resp.json()
+        # Extract model IDs (assuming OpenRouter returns a list under 'data')
+        models = []
+        if isinstance(data, dict) and 'data' in data:
+            for m in data['data']:
+                if isinstance(m, dict) and 'id' in m:
+                    models.append(m['id'])
+        else:
+            # Fallback: if response is a list
+            if isinstance(data, list):
+                for m in data:
+                    if isinstance(m, dict) and 'id' in m:
+                        models.append(m['id'])
+        return jsonify({'success': True, 'models': models})
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Error fetching models: {str(e)}'}), 500
+
+# Add this new endpoint after the get_openrouter_models function
+@app.route('/api/openrouter/test-connection', methods=['POST'])
+@require_auth_api
+def test_openrouter_connection():
+    """Test OpenRouter connection with the provided API key"""
+    api_key = request.json.get('api_key', '') if request.json else ''
+    
+    if not api_key:
+        return jsonify({'success': False, 'error': 'OpenRouter API key not provided'}), 400
+    
+    try:
+        resp = requests.get('https://openrouter.ai/api/v1/models', headers={
+            'Authorization': f'Bearer {api_key}',
+            'HTTP-Referer': 'http://127.0.0.1:5000',
+            'X-Title': 'Storybook Generator'
+        }, timeout=10)
+        
+        if resp.status_code == 200:
+            return jsonify({'success': True, 'message': 'Connection successful'})
+        else:
+            return jsonify({'success': False, 'error': f'OpenRouter returned {resp.status_code}: {resp.text[:100]}'}), resp.status_code
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Connection failed: {str(e)}'}), 500
+
 @app.route('/api/stories')
 @require_auth_api
 def api_stories():
@@ -376,7 +441,7 @@ def download_and_save_image(prompt):
 @app.route('/api/generate-story', methods=['POST'])
 @require_auth_api
 def generate_story():
-    """Generate a story using Ollama based on user selections"""
+    """Generate a story using the selected LLM provider (Ollama or OpenRouter)"""
     data = request.json
     character = data.get('character', 'dragon')
     setting = data.get('setting', 'forest')
@@ -385,87 +450,93 @@ def generate_story():
     prompt_template = get_setting('story_prompt', DEFAULT_SETTINGS['story_prompt'])
     prompt = prompt_template.format(character=character, setting=setting, colour=colour)
 
+    # Determine provider
+    provider = get_setting('llm_provider', 'ollama')
     try:
-        print(f"📝 Generating story with model: {OLLAMA_MODEL}")
-        print(f"📡 Using Ollama at: {OLLAMA_HOST}")
-
-        response = requests.post(
-            OLLAMA_API,
-            json={
-                "model": OLLAMA_MODEL,
-                "prompt": prompt,
-                "stream": False,
-                "temperature": 0.7,
-            },
-            timeout=120
-        )
-
-        print(f"Response status: {response.status_code}")
-
-        if response.status_code == 200:
+        if provider == 'ollama':
+            print(f"📝 Generating story with Ollama model: {OLLAMA_MODEL}")
+            print(f"📡 Using Ollama at: {OLLAMA_HOST}")
+            response = requests.post(
+                OLLAMA_API,
+                json={
+                    "model": OLLAMA_MODEL,
+                    "prompt": prompt,
+                    "stream": False,
+                    "temperature": 0.7,
+                },
+                timeout=120
+            )
+            if response.status_code != 200:
+                raise Exception(f"Ollama error: {response.text[:100]}")
             response_data = response.json()
             story_text = response_data.get('response', '').strip()
-
-            if not story_text:
-                print(f"⚠️  Empty response from Ollama: {response_data}")
-                return jsonify({
-                    'success': False,
-                    'error': 'Ollama returned an empty response. Check if the model is loaded.'
-                }), 500
-
-            # Generate a single illustration via Pollinations.ai
-            image_prompt = f"{character} in a {colour} {setting}, bedtime story illustration, cute cartoon style"
-            img_url = download_and_save_image(image_prompt)
-            image_urls = [img_url] if img_url else []
-
-            # ── Persist to database ──────────────────────────────────────────
-            story_id = save_story(
-                character=character,
-                setting=setting,
-                colour=colour,
-                story_text=story_text,
-                image_path=img_url  # may be None if generation failed
+        else:  # OpenRouter
+            api_key = get_setting('openrouter_api_key', '')
+            model = get_setting('openrouter_model', '')
+            if not api_key or not model:
+                return jsonify({'success': False, 'error': 'OpenRouter API key or model not configured'}), 400
+            print(f"📝 Generating story with OpenRouter model: {model}")
+            openrouter_url = 'https://openrouter.ai/api/v1/chat/completions'
+            response = requests.post(
+                openrouter_url,
+                headers={
+                    'Authorization': f'Bearer {api_key}',
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': 'http://127.0.0.1:5000',  # 👈 ADD THIS
+                    'X-Title': 'Storybook Generator'  # Optional
+                },
+                json={
+                    'model': model,
+                    'messages': [
+                        {'role': 'system', 'content': 'You are a helpful assistant that writes short bedtime stories.'},
+                        {'role': 'user', 'content': prompt}
+                    ],
+                    'temperature': 0.7,
+                },
+                timeout=120
             )
-            print(f"💾 Story saved to database with id={story_id}")
+            if response.status_code != 200:
+                raise Exception(f"OpenRouter error: {response.text[:100]}")
+            response_data = response.json()
+            # OpenAI style response
+            story_text = response_data.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
 
-            print(f"✅ Story generated successfully ({len(story_text)} chars)")
+        if not story_text:
+            return jsonify({'success': False, 'error': 'Generated story is empty'}), 500
 
-            return jsonify({
-                'success': True,
-                'story': story_text,
-                'images': image_urls,
-                'character': character,
-                'setting': setting,
-                'colour': colour,
-                'story_id': story_id
-            })
+        # Generate illustration via Pollinations.ai (same for both providers)
+        image_prompt = f"{character} in a {colour} {setting}, bedtime story illustration, cute cartoon style"
+        img_url = download_and_save_image(image_prompt)
+        image_urls = [img_url] if img_url else []
 
-        else:
-            error_text = response.text
-            print(f"❌ Ollama error (status {response.status_code}): {error_text}")
-            return jsonify({
-                'success': False,
-                'error': f'Ollama error: {error_text[:100]}'
-            }), 500
+        # Persist story
+        story_id = save_story(
+            character=character,
+            setting=setting,
+            colour=colour,
+            story_text=story_text,
+            image_path=img_url
+        )
+        print(f"💾 Story saved to database with id={story_id}")
 
+        return jsonify({
+            'success': True,
+            'story': story_text,
+            'images': image_urls,
+            'character': character,
+            'setting': setting,
+            'colour': colour,
+            'story_id': story_id
+        })
     except requests.exceptions.ConnectionError as e:
         print(f"❌ Connection error: {e}")
-        return jsonify({
-            'success': False,
-            'error': f'Cannot connect to Ollama at {OLLAMA_HOST}'
-        }), 500
+        return jsonify({'success': False, 'error': f'Connection error: {str(e)}'}), 500
     except requests.exceptions.Timeout:
-        print(f"❌ Timeout waiting for Ollama response")
-        return jsonify({
-            'success': False,
-            'error': 'Ollama took too long to respond. Try a smaller model or check server.'
-        }), 500
+        print(f"❌ Timeout waiting for LLM response")
+        return jsonify({'success': False, 'error': 'LLM request timed out'}), 500
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
-        return jsonify({
-            'success': False,
-            'error': f'Error: {str(e)}'
-        }), 500
+        return jsonify({'success': False, 'error': f'Error: {str(e)}'}), 500
 
 if __name__ == '__main__':
     print("🎉 Storybook Generator starting...")
