@@ -204,23 +204,21 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
+# ─── Main pages (NO authentication required) ────────────────────────────────────
+
 @app.route('/')
-@require_auth
 def index():
     return render_template('index.html')
 
 @app.route('/places')
-@require_auth
 def places():
     return render_template('places.html')
 
 @app.route('/colors')
-@require_auth
 def colors():
     return render_template('colors.html')
 
 @app.route('/story')
-@require_auth
 def story():
     return render_template('story.html')
 
@@ -240,14 +238,7 @@ COLOUR_MAP = {
     'gray':   '#607d8b',
 }
 
-@app.route('/images/<path:filename>')
-@require_auth
-def serve_image(filename):
-    """Serve story images stored in instance/images/ (outside the static folder)."""
-    return send_from_directory(IMAGES_DIR, filename)
-
 @app.route('/previous-stories')
-@require_auth
 def previous_stories():
     stories = get_all_stories()
     return render_template(
@@ -257,80 +248,74 @@ def previous_stories():
         colour_map=COLOUR_MAP,
     )
 
-@app.route('/settings')
+# ─── Settings page (REQUIRES authentication) ──────────────────────────────────
+
+@app.route('/settings', methods=['GET', 'POST'])
 @require_auth
-def settings_page():
-    return render_template('settings.html')
+def settings():
+    """Settings page — requires authentication"""
+    if request.method == 'POST':
+        # Handle form submission
+        password = request.form.get('password', '')
+        ollama_host = request.form.get('ollama_host', '')
+        ollama_model = request.form.get('ollama_model', '')
+        openrouter_api_key = request.form.get('openrouter_api_key', '')
+        openrouter_model = request.form.get('openrouter_model', '')
+        llm_provider = request.form.get('llm_provider', 'ollama')
+        story_prompt = request.form.get('story_prompt', '')
 
-# ─── API ───────────────────────────────────────────────────────────────────────
+        if password:
+            set_setting('password', password)
+        if ollama_host:
+            set_setting('ollama_host', ollama_host)
+        if ollama_model:
+            set_setting('ollama_model', ollama_model)
+        if openrouter_api_key:
+            set_setting('openrouter_api_key', openrouter_api_key)
+        if openrouter_model:
+            set_setting('openrouter_model', openrouter_model)
+        if llm_provider:
+            set_setting('llm_provider', llm_provider)
+        if story_prompt:
+            set_setting('story_prompt', story_prompt)
 
-@app.route('/api/settings', methods=['GET'])
-@require_auth_api
-def get_settings():
-    """Get all settings (password is never returned to the client)"""
-    s = get_all_settings()
-    s.pop('password', None)          # never expose the stored password
-    s['password_set'] = bool(get_setting('password', ''))
-    # Add provider and OpenRouter info (mask API key)
-    s['llm_provider'] = get_setting('llm_provider', 'ollama')
-    s['openrouter_model'] = get_setting('openrouter_model', '')
-    s['openrouter_api_key_set'] = bool(get_setting('openrouter_api_key', ''))
-    return jsonify(s)
+        return redirect(url_for('settings'))
 
-@app.route('/api/settings', methods=['POST'])
-@require_auth_api
-def update_settings():
-    """Update settings"""
-    data = request.json
+    settings_dict = get_all_settings()
+    return render_template('settings.html', settings=settings_dict)
 
-    for key, value in data.items():
-        if key in DEFAULT_SETTINGS:
-            set_setting(key, value)
-            print(f"✅ Updated setting: {key}")
-        else:
-            return jsonify({
-                'success': False,
-                'error': f'Unknown setting: {key}'
-            }), 400
-
-    # Update global variables
-    global OLLAMA_HOST, OLLAMA_MODEL, OLLAMA_API
-    OLLAMA_HOST = get_setting('ollama_host', 'http://localhost:11434')
-    OLLAMA_MODEL = get_setting('ollama_model', 'gemma2:2b')
-    OLLAMA_API = f"{OLLAMA_HOST}/api/generate"
-
-    return jsonify({'success': True, 'message': 'Settings updated successfully'})
-
-@app.route('/api/config', methods=['GET'])
-@require_auth_api
-def get_config():
-    """Get current Ollama configuration"""
-    return jsonify({'ollama_host': OLLAMA_HOST, 'ollama_model': OLLAMA_MODEL})
+@app.route('/images/<path:filename>')
+def serve_image(filename):
+    """Serve story images stored in instance/images/ (outside the static folder)."""
+    return send_from_directory(IMAGES_DIR, filename)
 
 @app.route('/api/config', methods=['POST'])
 @require_auth_api
-def set_config():
-    """Update Ollama configuration"""
-    global OLLAMA_HOST, OLLAMA_API
-    data = request.json
-    new_host = data.get('ollama_host', OLLAMA_HOST).rstrip('/')
-
+def api_config():
+    """Test and save Ollama configuration"""
+    if not request.json:
+        return jsonify({'success': False, 'error': 'Invalid JSON'}), 400
+    
+    ollama_host = request.json.get('ollama_host', '')
+    if not ollama_host:
+        return jsonify({'success': False, 'error': 'Ollama host not provided'}), 400
+    
+    # Test the connection
     try:
-        test_response = requests.get(f"{new_host}/api/tags", timeout=5)
-        if test_response.status_code == 200:
-            OLLAMA_HOST = new_host
-            OLLAMA_API = f"{OLLAMA_HOST}/api/generate"
-            return jsonify({
-                'success': True,
-                'message': 'Ollama connection updated successfully',
-                'ollama_host': OLLAMA_HOST
-            })
+        test_url = f"{ollama_host}/api/tags"
+        response = requests.get(test_url, timeout=5)
+        if response.status_code == 200:
+            # Connection successful, save the host
+            set_setting('ollama_host', ollama_host)
+            return jsonify({'success': True, 'message': 'Connection successful'})
         else:
-            return jsonify({'success': False, 'error': 'Ollama server returned an error'}), 500
+            return jsonify({'success': False, 'error': f'Ollama returned status {response.status_code}'}), 400
+    except requests.exceptions.Timeout:
+        return jsonify({'success': False, 'error': 'Connection timeout'}), 500
     except requests.exceptions.ConnectionError:
-        return jsonify({'success': False, 'error': 'Cannot connect to Ollama at that address'}), 500
+        return jsonify({'success': False, 'error': 'Cannot connect to Ollama server'}), 500
     except Exception as e:
-        return jsonify({'success': False, 'error': f'Error: {str(e)}'}), 500
+        return jsonify({'success': False, 'error': f'Connection error: {str(e)}'}), 500
 
 # OpenRouter model list proxy
 # Update the existing models endpoint to accept both GET and POST
@@ -362,6 +347,8 @@ def get_openrouter_models():
                 for m in data:
                     if isinstance(m, dict) and 'id' in m:
                         models.append(m['id'])
+        # Sort models by name
+        models.sort()
         return jsonify({'success': True, 'models': models})
     except Exception as e:
         return jsonify({'success': False, 'error': f'Error fetching models: {str(e)}'}), 500
@@ -390,16 +377,47 @@ def test_openrouter_connection():
     except Exception as e:
         return jsonify({'success': False, 'error': f'Connection failed: {str(e)}'}), 500
 
-@app.route('/api/stories')
+@app.route('/api/settings', methods=['GET', 'POST'])
 @require_auth_api
+def api_settings():
+    """Get or save settings as JSON"""
+    if request.method == 'GET':
+        # Return all settings
+        settings = get_all_settings()
+        return jsonify(settings)
+    
+    # POST — save settings
+    if not request.json:
+        return jsonify({'success': False, 'error': 'Invalid JSON'}), 400
+    
+    data = request.json
+    
+    # Save each setting that was provided
+    if 'password' in data and data['password']:
+        set_setting('password', data['password'])
+    if 'ollama_host' in data and data['ollama_host']:
+        set_setting('ollama_host', data['ollama_host'])
+    if 'ollama_model' in data and data['ollama_model']:
+        set_setting('ollama_model', data['ollama_model'])
+    if 'openrouter_api_key' in data and data['openrouter_api_key']:
+        set_setting('openrouter_api_key', data['openrouter_api_key'])
+    if 'openrouter_model' in data and data['openrouter_model']:
+        set_setting('openrouter_model', data['openrouter_model'])
+    if 'llm_provider' in data and data['llm_provider']:
+        set_setting('llm_provider', data['llm_provider'])
+    if 'story_prompt' in data and data['story_prompt']:
+        set_setting('story_prompt', data['story_prompt'])
+    
+    return jsonify({'success': True, 'message': 'Settings saved'})
+
+@app.route('/api/stories')
 def api_stories():
-    """Return all saved stories as JSON"""
+    """Return all saved stories as JSON (public)"""
     return jsonify(get_all_stories())
 
 @app.route('/api/stories/<int:story_id>')
-@require_auth_api
 def api_story(story_id):
-    """Return a single saved story as JSON"""
+    """Return a single saved story as JSON (public)"""
     story = get_story_by_id(story_id)
     if story:
         return jsonify(story)
@@ -439,7 +457,6 @@ def download_and_save_image(prompt):
         return None
 
 @app.route('/api/generate-story', methods=['POST'])
-@require_auth_api
 def generate_story():
     """Generate a story using the selected LLM provider (Ollama or OpenRouter)"""
     data = request.json
