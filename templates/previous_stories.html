@@ -339,6 +339,9 @@
                 <button id="modal-print-btn" class="control-button">
                     🖨️ Print Story
                 </button>
+                <button id="modal-delete-btn" class="control-button" style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);">
+                    🗑️ Delete Story
+                </button>
             </div>
         </div>
     </div>
@@ -352,11 +355,13 @@
 
         // ── Text-to-speech state ──
         let currentStoryText = '';
+        let currentStoryId = null;
         let modalAudioPlayer = null;
         let modalAudioUrl = null;
 
         const modalReadBtn  = document.getElementById('modal-read-aloud-btn');
         const modalPauseBtn = document.getElementById('modal-pause-btn');
+        const modalDeleteBtn = document.getElementById('modal-delete-btn');
 
         function cleanupModalAudio() {
             if (modalAudioPlayer) {
@@ -383,7 +388,7 @@
                 const response = await fetch('/api/tts', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: currentStoryText })
+                    body: JSON.stringify({ text: currentStoryText, story_id: currentStoryId })
                 });
 
                 if (!response.ok) {
@@ -431,6 +436,36 @@
             window.print();
         });
 
+        async function deleteStory() {
+            if (!currentStoryId) return;
+
+            // Show confirmation dialog
+            const confirmed = confirm('Are you sure you want to delete this story? This cannot be undone.');
+            if (!confirmed) return;
+
+            try {
+                const response = await fetch(`/api/delete-story/${currentStoryId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to delete story');
+                }
+
+                // Close modal and refresh story grid
+                closeStory();
+                alert('Story deleted successfully!');
+                window.location.reload();
+            } catch (error) {
+                console.error('Delete story failed:', error);
+                alert(error.message || 'Unable to delete this story.');
+            }
+        }
+
+        modalDeleteBtn.addEventListener('click', deleteStory);
+
         function stopSpeech() {
             if (modalAudioPlayer) {
                 modalAudioPlayer.pause();
@@ -451,6 +486,7 @@
             // Stop any ongoing speech before opening a new story
             stopSpeech();
             currentStoryText = s.story_text;
+            currentStoryId = s.id;
 
             document.getElementById('modal-title').textContent =
                 `📖 A ${s.character} in a ${s.setting}`;
@@ -482,6 +518,7 @@
         function closeStory() {
             stopSpeech();
             currentStoryText = '';
+            currentStoryId = null;
             document.getElementById('story-modal').classList.add('hidden');
             document.body.style.overflow = '';
         }

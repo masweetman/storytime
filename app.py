@@ -15,6 +15,7 @@ from contextlib import contextmanager
 from datetime import timedelta
 from gtts import gTTS
 from flask_gtts import gtts as FlaskGTTS
+import threading
 
 load_dotenv()
 
@@ -40,6 +41,10 @@ DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 # Image configuration — stored inside instance/ so they're excluded from git
 IMAGES_DIR = Path(app.instance_path) / 'images'
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+
+# Audio configuration — stored inside instance/ so they're excluded from git
+AUDIO_DIR = Path(app.instance_path) / 'audio'
+AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 # Default settings
 DEFAULT_SETTINGS = {
@@ -76,6 +81,10 @@ TTS_SLOW_CONFIG = {
     'false': False,
 }
 
+STARTUP_MIGRATIONS = [
+    ('001_add_audio_path_to_stories', 'Add audio_path column to stories table', 'stories', 'audio_path', 'TEXT'),
+]
+
 @contextmanager
 def get_db():
     """Get database connection"""
@@ -105,7 +114,16 @@ def init_db():
                 colour TEXT NOT NULL,
                 story_text TEXT NOT NULL,
                 image_path TEXT,
+                audio_path TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                version TEXT PRIMARY KEY,
+                description TEXT NOT NULL,
+                applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
 
@@ -114,6 +132,35 @@ def init_db():
             conn.execute(
                 'INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)',
                 (key, value)
+            )
+
+def column_exists(conn, table_name, column_name):
+    """Return True if the given SQLite table has the requested column."""
+    rows = conn.execute(f'PRAGMA table_info({table_name})').fetchall()
+    return any(row['name'] == column_name for row in rows)
+
+def apply_migrations():
+    """Apply pending SQLite schema migrations during application startup."""
+    with get_db() as conn:
+        applied = {
+            row['version']
+            for row in conn.execute('SELECT version FROM schema_migrations').fetchall()
+        }
+
+        for version, description, table_name, column_name, column_type in STARTUP_MIGRATIONS:
+            if version in applied:
+                continue
+
+            if column_exists(conn, table_name, column_name):
+                print(f"ℹ️  Migration already satisfied: {version} ({column_name} exists)")
+            else:
+                print(f"🔄 Running migration: {version} - {description}")
+                conn.execute(f'ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}')
+                print(f"✅ Migration {version} completed")
+
+            conn.execute(
+                'INSERT OR IGNORE INTO schema_migrations (version, description) VALUES (?, ?)',
+                (version, description)
             )
 
 def get_setting(key, default=None):
@@ -146,13 +193,13 @@ def get_tts_slow_value(slow_value=None):
     normalized_value = str(slow_value or DEFAULT_SETTINGS['tts_slow']).lower()
     return TTS_SLOW_CONFIG.get(normalized_value, False)
 
-def save_story(character, setting, colour, story_text, image_path):
+def save_story(character, setting, colour, story_text, image_path, audio_path=None):
     """Persist a generated story to the database"""
     with get_db() as conn:
         cursor = conn.execute(
-            '''INSERT INTO stories (character, setting, colour, story_text, image_path)
-               VALUES (?, ?, ?, ?, ?)''',
-            (character, setting, colour, story_text, image_path)
+            '''INSERT INTO stories (character, setting, colour, story_text, image_path, audio_path)
+               VALUES (?, ?, ?, ?, ?, ?)''',
+            (character, setting, colour, story_text, image_path, audio_path)
         )
         return cursor.lastrowid
 
@@ -174,6 +221,9 @@ def get_story_by_id(story_id):
 
 # Initialize database on startup
 init_db()
+
+# Apply pending migrations on startup
+apply_migrations()
 
 # ─── Auth helpers ──────────────────────────────────────────────────────────────
 
@@ -319,6 +369,11 @@ def serve_image(filename):
     """Serve story images stored in instance/images/ (outside the static folder)."""
     return send_from_directory(IMAGES_DIR, filename)
 
+@app.route('/audio/<path:filename>')
+def serve_audio(filename):
+    """Serve story audio files stored in instance/audio/ (outside the static folder)."""
+    return send_from_directory(AUDIO_DIR, filename)
+
 @app.route('/api/config', methods=['POST'])
 @require_auth_api
 def api_config():
@@ -429,16 +484,30 @@ def test_openrouter_connection():
         return jsonify({'success': False, 'error': f'Connection failed: {str(e)}'}), 500
 
 @app.route('/api/tts', methods=['POST'])
-@require_auth_api
 def api_tts():
-    """Generate TTS audio for story text using gTTS."""
+    """Generate TTS audio for story text using gTTS. If story_id provided, try to serve pre-generated audio."""
     if not request.json:
         return jsonify({'success': False, 'error': 'Invalid JSON'}), 400
 
     text = (request.json.get('text', '') or '').strip()
+    story_id = request.json.get('story_id')
+    
     if not text:
         return jsonify({'success': False, 'error': 'No text provided'}), 400
 
+    # If story_id provided, check if audio is already generated
+    if story_id:
+        story = get_story_by_id(story_id)
+        if story and story.get('audio_path'):
+            # Audio exists—serve from disk
+            audio_filename = story['audio_path'].split('/')[-1]
+            try:
+                return send_from_directory(AUDIO_DIR, audio_filename)
+            except Exception as e:
+                print(f"⚠️  Error serving pre-generated audio: {e}")
+                # Fall through to generate on-demand
+
+    # Generate audio on-demand
     locale = get_tts_locale(get_setting('tts_locale', DEFAULT_SETTINGS['tts_locale']))
     locale_config = TTS_LOCALE_CONFIG[locale]
     slow_value = get_tts_slow_value(get_setting('tts_slow', DEFAULT_SETTINGS['tts_slow']))
@@ -514,6 +583,45 @@ def api_story(story_id):
         return jsonify(story)
     return jsonify({'error': 'Story not found'}), 404
 
+@app.route('/api/delete-story/<int:story_id>', methods=['DELETE'])
+def delete_story(story_id):
+    """Delete a story and its associated files (image, audio) from disk."""
+    @require_auth_api
+    def _delete():
+        story = get_story_by_id(story_id)
+        if not story:
+            return jsonify({'success': False, 'error': 'Story not found'}), 404
+        
+        try:
+            # Delete image file if it exists
+            if story.get('image_path'):
+                image_filename = story['image_path'].split('/')[-1]
+                image_file = IMAGES_DIR / image_filename
+                if image_file.exists():
+                    image_file.unlink()
+                    print(f"🗑️  Deleted image file: {image_file}")
+            
+            # Delete audio file if it exists
+            if story.get('audio_path'):
+                audio_filename = story['audio_path'].split('/')[-1]
+                audio_file = AUDIO_DIR / audio_filename
+                if audio_file.exists():
+                    audio_file.unlink()
+                    print(f"🗑️  Deleted audio file: {audio_file}")
+            
+            # Delete story from database
+            with get_db() as conn:
+                conn.execute('DELETE FROM stories WHERE id = ?', (story_id,))
+            print(f"🗑️  Deleted story {story_id} from database")
+            
+            return jsonify({'success': True, 'message': 'Story deleted'})
+        
+        except Exception as e:
+            print(f"❌ Error deleting story {story_id}: {e}")
+            return jsonify({'success': False, 'error': f'Error deleting story: {str(e)}'}), 500
+    
+    return _delete()
+
 def download_and_save_image(prompt):
     """Download image from Pollinations.ai, save to instance/images/, return URL path."""
     try:
@@ -546,6 +654,52 @@ def download_and_save_image(prompt):
     except Exception as e:
         print(f"⚠️  Error downloading image: {type(e).__name__}: {e}")
         return None
+
+def save_audio_file(text, story_id):
+    """Generate and save audio MP3 file for story text using user's TTS settings."""
+    try:
+        filename = f"{uuid.uuid4().hex}.mp3"
+        print(f"🎵 Generating audio for story {story_id} (filename: {filename})...")
+        
+        # Get user's TTS settings
+        locale = get_tts_locale(get_setting('tts_locale', DEFAULT_SETTINGS['tts_locale']))
+        locale_config = TTS_LOCALE_CONFIG[locale]
+        slow_value = get_tts_slow_value(get_setting('tts_slow', DEFAULT_SETTINGS['tts_slow']))
+        
+        # Generate audio
+        tts_audio = gTTS(
+            text=text,
+            lang=locale_config['lang'],
+            tld=locale_config['tld'],
+            slow=slow_value,
+        )
+        
+        # Save to disk
+        audio_path = AUDIO_DIR / filename
+        tts_audio.save(str(audio_path))
+        print(f"✅ Saved audio for story {story_id} → {audio_path}")
+        
+        # Update database with audio_path
+        with get_db() as conn:
+            conn.execute(
+                'UPDATE stories SET audio_path = ? WHERE id = ?',
+                (f"/audio/{filename}", story_id)
+            )
+        print(f"💾 Updated story {story_id} with audio_path")
+        
+        return f"/audio/{filename}"
+        
+    except Exception as e:
+        print(f"⚠️  Error generating audio for story {story_id}: {type(e).__name__}: {e}")
+        # Don't raise—let story exist without audio
+        return None
+
+def generate_audio_background(text, story_id):
+    """Background task to generate audio asynchronously."""
+    try:
+        save_audio_file(text, story_id)
+    except Exception as e:
+        print(f"⚠️  Background audio generation failed for story {story_id}: {e}")
 
 @app.route('/api/generate-story', methods=['POST'])
 def generate_story():
@@ -626,6 +780,15 @@ def generate_story():
             image_path=img_url
         )
         print(f"💾 Story saved to database with id={story_id}")
+        
+        # Spawn background task to generate audio (non-blocking)
+        audio_thread = threading.Thread(
+            target=generate_audio_background,
+            args=(story_text, story_id),
+            daemon=True
+        )
+        audio_thread.start()
+        print(f"🎵 Started background audio generation for story {story_id}")
 
         return jsonify({
             'success': True,
