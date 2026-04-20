@@ -60,11 +60,12 @@ DEFAULT_SETTINGS = {
 
 Main character: A {character}
 Setting: {setting}
+Activity: {activity}
 Favorite color: {colour}
 
 The story should:
 - Use natural language
-- Involve the character and a friend going on an adventure
+- Involve the character and one or more friends
 - Minimize alliteration, rhyme, and rhythm, but do not eliminate them completely.
 
 Story:'''
@@ -718,10 +719,11 @@ def generate_story():
     data = request.json
     character = data.get('character', 'dragon')
     setting = data.get('setting', 'forest')
+    activity = data.get('activity', 'adventure')
     colour = data.get('colour', 'blue')
 
     prompt_template = get_setting('story_prompt', DEFAULT_SETTINGS['story_prompt'])
-    prompt = prompt_template.format(character=character, setting=setting, colour=colour)
+    prompt = prompt_template.format(character=character, setting=setting, activity=activity, colour=colour)
 
     # Determine provider
     provider = get_setting('llm_provider', 'ollama')

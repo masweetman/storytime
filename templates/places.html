@@ -20,34 +20,34 @@
         <h2>🏰 Pick a Place</h2>
         <div class="row g-3 justify-content-center">
             <div class="col-6 col-md-4 choice-grid-item">
-                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-type="setting" data-value="enchanted forest with tall trees">🌲 Enchanted Forest</button>
+                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-type="setting" data-value="enchanted forest with tall trees" data-activity="adventure">🌲 Enchanted Forest</button>
             </div>
             <div class="col-6 col-md-4 choice-grid-item">
-                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-type="setting" data-value="outer space with twinkling stars">🌌 Outer Space</button>
+                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-type="setting" data-value="outer space with twinkling stars" data-activity="exploration">🌌 Outer Space</button>
             </div>
             <div class="col-6 col-md-4 choice-grid-item">
-                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-type="setting" data-value="underwater kingdom with coral">🌊 Underwater</button>
+                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-type="setting" data-value="underwater kingdom with coral" data-activity="exploration">🌊 Underwater</button>
             </div>
             <div class="col-6 col-md-4 choice-grid-item">
-                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-type="setting" data-value="cozy village with cottages">🏘️ Cozy Village</button>
+                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-type="setting" data-value="cozy village with cottages" data-activity="adventure">🏘️ Cozy Village</button>
             </div>
             <div class="col-6 col-md-4 choice-grid-item">
-                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-type="setting" data-value="magical castle with towers">🏰 Magic Castle</button>
+                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-type="setting" data-value="magical castle with towers" data-activity="adventure">🏰 Magic Castle</button>
             </div>
             <div class="col-6 col-md-4 choice-grid-item">
-                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-type="setting" data-value="sunny meadow with flowers">🌻 Sunny Meadow</button>
+                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-type="setting" data-value="sunny meadow with flowers" data-activity="playing">🌻 Sunny Meadow</button>
             </div>
             <div class="col-6 col-md-4 choice-grid-item">
-                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-type="setting" data-value="soccer pitch with cheering fans">⚽ Soccer Pitch</button>
+                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-type="setting" data-value="soccer pitch with cheering fans" data-activity="playing soccer">⚽ Soccer Pitch</button>
             </div>
             <div class="col-6 col-md-4 choice-grid-item">
-                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-type="setting" data-value="baseball diamond under bright lights">⚾ Baseball Diamond</button>
+                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-type="setting" data-value="baseball diamond under bright lights" data-activity="playing baseball">⚾ Baseball Diamond</button>
             </div>
             <div class="col-6 col-md-4 choice-grid-item">
-                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-type="setting" data-value="basketball court at the community center">🏀 Basketball Court</button>
+                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-type="setting" data-value="basketball court at the community center" data-activity="playing basketball">🏀 Basketball Court</button>
             </div>
             <div class="col-6 col-md-4 choice-grid-item">
-                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-type="setting" data-value="volleyball court by the beach">🏐 Volleyball Court</button>
+                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-type="setting" data-value="volleyball court by the beach" data-activity="playing volleyball">🏐 Volleyball Court</button>
             </div>
         </div>
     </div>
@@ -61,7 +61,8 @@
     document.querySelectorAll('.choice-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const setting = btn.dataset.value;
-            window.location.href = `/colors?character=${encodeURIComponent(character)}&setting=${encodeURIComponent(setting)}`;
+            const activity = btn.dataset.activity;
+            window.location.href = `/colors?character=${encodeURIComponent(character)}&setting=${encodeURIComponent(setting)}&activity=${encodeURIComponent(activity)}`;
         });
     });
 </script>
