@@ -491,21 +491,32 @@ def api_tts():
 
     text = (request.json.get('text', '') or '').strip()
     story_id = request.json.get('story_id')
-    
-    if not text:
+
+    if not text and not story_id:
         return jsonify({'success': False, 'error': 'No text provided'}), 400
 
-    # If story_id provided, check if audio is already generated
+    # If story_id provided, reuse existing audio or persist a new file for this story.
     if story_id:
         story = get_story_by_id(story_id)
-        if story and story.get('audio_path'):
-            # Audio exists—serve from disk
-            audio_filename = story['audio_path'].split('/')[-1]
-            try:
-                return send_from_directory(AUDIO_DIR, audio_filename)
-            except Exception as e:
-                print(f"⚠️  Error serving pre-generated audio: {e}")
-                # Fall through to generate on-demand
+        if story:
+            story_text = (story.get('story_text') or '').strip()
+            text = text or story_text
+
+            if story.get('audio_path'):
+                audio_filename = story['audio_path'].split('/')[-1]
+                audio_file = AUDIO_DIR / audio_filename
+                if audio_file.exists():
+                    return send_from_directory(AUDIO_DIR, audio_filename)
+                print(f"⚠️  Audio path exists for story {story_id} but file is missing; regenerating.")
+
+            if text:
+                audio_path = save_audio_file(text, story_id)
+                if audio_path:
+                    audio_filename = audio_path.split('/')[-1]
+                    return send_from_directory(AUDIO_DIR, audio_filename)
+
+        elif not text:
+            return jsonify({'success': False, 'error': 'Story not found'}), 404
 
     # Generate audio on-demand
     locale = get_tts_locale(get_setting('tts_locale', DEFAULT_SETTINGS['tts_locale']))
