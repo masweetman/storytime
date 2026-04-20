@@ -1,26 +1,21 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Storybook">
-    <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
-    <title>⚙️ Settings - Storybook Generator</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="header-top">
-                <h1>⚙️ Settings</h1>
-                <a href="/" class="back-button" title="Back to Stories">🏠</a>
-            </div>
-            <p class="subtitle">Configure your Storybook Generator</p>
-        </div>
+{% extends "base.html" %}
 
-        <div class="settings-panel">
+{% block page_title %}⚙️ Settings - Storybook Generator{% endblock %}
+
+{% block page_heading %}⚙️ Settings{% endblock %}
+
+{% block nav_left %}
+<a href="/" class="btn btn-outline-primary kid-icon-btn" title="Back to stories">
+    🏠 <span>Home</span>
+</a>
+{% endblock %}
+
+{% block page_subtitle %}
+<p class="subtitle text-center">Configure your Storybook Generator</p>
+{% endblock %}
+
+{% block content %}
+<div class="settings-panel">
             <!-- Password Section -->
             <div class="settings-section">
                 <h2>🔒 Password Protection</h2>
@@ -30,6 +25,7 @@
                     <input
                         type="password"
                         id="new-password"
+                        class="form-control kid-input"
                         placeholder="Leave blank to disable password protection"
                         autocomplete="new-password"
                     >
@@ -41,6 +37,7 @@
                     <input
                         type="password"
                         id="confirm-password"
+                        class="form-control kid-input"
                         placeholder="Repeat new password"
                         autocomplete="new-password"
                     >
@@ -48,7 +45,7 @@
 
                 <div id="password-status" class="status-message hidden"></div>
 
-                <button id="save-password-btn" class="settings-button primary">
+                <button id="save-password-btn" class="btn btn-primary kid-primary-btn settings-action-btn">
                     🔒 Save Password
                 </button>
             </div>
@@ -59,13 +56,13 @@
                 
                 <div class="settings-group">
                     <label>Choose your story generation provider:</label>
-                    <div class="provider-toggle">
-                        <label class="radio-option">
-                            <input type="radio" name="llm-provider" value="ollama" checked>
+                    <div class="provider-toggle row g-2">
+                        <label class="radio-option col-12 col-md-6">
+                            <input class="form-check-input" type="radio" name="llm-provider" value="ollama" checked>
                             <span class="radio-label">🔥 Ollama (Local)</span>
                         </label>
-                        <label class="radio-option">
-                            <input type="radio" name="llm-provider" value="openrouter">
+                        <label class="radio-option col-12 col-md-6">
+                            <input class="form-check-input" type="radio" name="llm-provider" value="openrouter">
                             <span class="radio-label">☁️ OpenRouter (Cloud)</span>
                         </label>
                     </div>
@@ -81,6 +78,7 @@
                     <input 
                         type="text" 
                         id="ollama-host" 
+                        class="form-control kid-input"
                         placeholder="http://localhost:11434"
                     >
                     <p class="hint">Example: http://192.168.1.100:11434</p>
@@ -91,14 +89,17 @@
                     <input 
                         type="text" 
                         id="ollama-model" 
+                        class="form-control kid-input"
                         placeholder="gemma2:2b"
                     >
                     <p class="hint">Available models: gemma2:2b, llama2, mistral, neural-chat, etc.</p>
                 </div>
 
-                <button id="test-ollama-btn" class="settings-button secondary">
-                    🔍 Test Connection
-                </button>
+                <div class="d-grid d-md-inline-block">
+                    <button id="test-ollama-btn" class="btn btn-outline-primary kid-secondary-btn settings-action-btn">
+                        🔍 Test Connection
+                    </button>
+                </div>
             </div>
 
             <!-- OpenRouter Settings Section -->
@@ -111,30 +112,35 @@
                         <input 
                             type="password" 
                             id="openrouter-api-key" 
+                            class="form-control kid-input"
                             placeholder="sk-or-..."
                         >
-                        <button type="button" id="toggle-api-key" class="toggle-btn">👁️</button>
+                        <button type="button" id="toggle-api-key" class="btn btn-outline-secondary toggle-btn">👁️</button>
                     </div>
                     <p class="hint">Get your API key from <a href="https://openrouter.ai/keys" target="_blank">OpenRouter dashboard</a></p>
                 </div>
 
                 <div class="settings-group">
                     <label for="openrouter-model">Model:</label>
-                    <select id="openrouter-model">
+                    <select id="openrouter-model" class="form-select kid-input">
                         <option value="">Select a model...</option>
                     </select>
                     <p class="hint">Choose a model from the dropdown or fetch available models</p>
                 </div>
 
                 <div class="settings-group">
-                    <button id="fetch-models-btn" class="settings-button secondary">
-                        🔄 Fetch Available Models
-                    </button>
+                    <div class="d-grid d-md-inline-block">
+                        <button id="fetch-models-btn" class="btn btn-outline-primary kid-secondary-btn settings-action-btn">
+                            🔄 Fetch Available Models
+                        </button>
+                    </div>
                 </div>
 
-                <button id="test-openrouter-btn" class="settings-button secondary">
-                    🔍 Test Connection
-                </button>
+                <div class="d-grid d-md-inline-block">
+                    <button id="test-openrouter-btn" class="btn btn-outline-primary kid-secondary-btn settings-action-btn">
+                        🔍 Test Connection
+                    </button>
+                </div>
             </div>
 
             <!-- Story Prompt Section -->
@@ -145,33 +151,36 @@
                     <label for="story-prompt">Custom Prompt Template:</label>
                     <textarea 
                         id="story-prompt" 
-                        class="prompt-textarea"
+                        class="form-control prompt-textarea kid-input"
                         placeholder="Write a story..."
                     ></textarea>
                     <p class="hint">Use {character}, {setting}, and {colour} as placeholders</p>
                 </div>
 
-                <button id="reset-prompt-btn" class="settings-button secondary">
-                    🔄 Reset to Default
-                </button>
+                <div class="d-grid d-md-inline-block">
+                    <button id="reset-prompt-btn" class="btn btn-outline-primary kid-secondary-btn settings-action-btn">
+                        🔄 Reset to Default
+                    </button>
+                </div>
             </div>
 
             <!-- Status Messages -->
             <div id="status-message" class="status-message hidden"></div>
 
             <!-- Action Buttons -->
-            <div class="settings-footer">
-                <button id="save-settings-btn" class="settings-button primary">
+            <div class="settings-footer d-grid gap-2 d-sm-flex justify-content-sm-center">
+                <button id="save-settings-btn" class="btn btn-primary kid-primary-btn settings-action-btn">
                     💾 Save Settings
                 </button>
-                <button id="cancel-btn" class="settings-button secondary">
+                <button id="cancel-btn" class="btn btn-outline-primary kid-secondary-btn settings-action-btn">
                     ❌ Cancel
                 </button>
             </div>
-        </div>
-    </div>
+</div>
+{% endblock %}
 
-    <script>
+{% block page_scripts %}
+<script>
         // Password handling
         const newPasswordInput  = document.getElementById('new-password');
         const confirmPasswordInput = document.getElementById('confirm-password');
@@ -241,6 +250,16 @@
         const cancelBtn = document.getElementById('cancel-btn');
         const statusMessage = document.getElementById('status-message');
 
+        function updateProviderSections(provider) {
+            if (provider === 'openrouter') {
+                ollamaSection.style.display = 'none';
+                openrouterSection.style.display = 'block';
+            } else {
+                ollamaSection.style.display = 'block';
+                openrouterSection.style.display = 'none';
+            }
+        }
+
         // Load settings on page load
         async function loadSettings() {
             try {
@@ -256,13 +275,7 @@
                 });
                 
                 // Show/hide sections based on provider
-                if (selectedProvider === 'ollama') {
-                    ollamaSection.style.display = 'block';
-                    openrouterSection.style.display = 'none';
-                } else {
-                    ollamaSection.style.display = 'none';
-                    openrouterSection.style.display = 'block';
-                }
+                updateProviderSections(selectedProvider);
                 
                 // Populate fields
                 ollamaHostInput.value = settings.ollama_host || '';
@@ -270,7 +283,7 @@
                 storyPromptInput.value = settings.story_prompt || '';
                 
                 // Populate OpenRouter fields if available
-                openrouterApiKeyInput.value = settings.openrouter_api_key_set ? '••••••••••••••••' : '';
+                openrouterApiKeyInput.value = settings.openrouter_api_key || '';
                 openrouterModelSelect.value = settings.openrouter_model || '';
                 
             } catch (error) {
@@ -312,10 +325,6 @@
         // Test OpenRouter connection
         testOpenrouterBtn.addEventListener('click', async () => {
             const apiKey = openrouterApiKeyInput.value.trim();
-            if (!apiKey || apiKey === '••••••••••••••••') {
-                showStatus('Please enter a valid OpenRouter API key', 'error');
-                return;
-            }
             
             testOpenrouterBtn.disabled = true;
             showStatus('Testing connection...', 'loading');
@@ -354,10 +363,6 @@
         // Fetch OpenRouter models
         fetchModelsBtn.addEventListener('click', async () => {
             const apiKey = openrouterApiKeyInput.value.trim();
-            if (!apiKey || apiKey === '••••••••••••••••') {
-                showStatus('Please enter a valid OpenRouter API key', 'error');
-                return;
-            }
             
             fetchModelsBtn.disabled = true;
             showStatus('Fetching models...', 'loading');
@@ -390,6 +395,15 @@
             }
         });
 
+        // Switch API fields immediately when provider changes
+        providerRadios.forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (radio.checked) {
+                    updateProviderSections(radio.value);
+                }
+            });
+        });
+
         // Toggle API key visibility
         toggleApiKeyBtn.addEventListener('click', () => {
             const type = openrouterApiKeyInput.getAttribute('type');
@@ -407,8 +421,8 @@
 
             // Add provider and OpenRouter fields
             const provider = document.querySelector('input[name="llm-provider"]:checked').value;
+            settings.llm_provider = provider;
             if (provider === 'openrouter') {
-                settings.llm_provider = provider;
                 settings.openrouter_api_key = openrouterApiKeyInput.value.trim();
                 settings.openrouter_model = openrouterModelSelect.value;
             }
@@ -466,5 +480,4 @@
         // Load settings when page loads
         document.addEventListener('DOMContentLoaded', loadSettings);
     </script>
-</body>
-</html>
+{% endblock %}

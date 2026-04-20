@@ -22,6 +22,10 @@ body {
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 
+.stories-container {
+    max-width: 1100px;
+}
+
 .header-top {
     display: flex;
     justify-content: center;
@@ -30,8 +34,23 @@ body {
     margin-bottom: 10px;
 }
 
+.app-header-top {
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.app-header-side {
+    min-width: 130px;
+    display: flex;
+    align-items: center;
+}
+
+.app-header-side-right {
+    justify-content: flex-end;
+}
+
 .header h1 {
-    font-size: 48px;
+    font-size: clamp(2rem, 5vw, 3rem);
     color: #667eea;
     margin-bottom: 0;
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
@@ -71,8 +90,65 @@ body {
 }
 
 .subtitle {
-    font-size: 24px;
+    font-size: clamp(1.2rem, 3.2vw, 1.55rem);
     color: #666;
+}
+
+.tap-hint {
+    font-size: clamp(1rem, 2.5vw, 1.2rem);
+    color: #7a6f90;
+    margin-top: -6px;
+    margin-bottom: 16px;
+    font-weight: bold;
+}
+
+.page-bottom-actions {
+    margin-top: 128px;
+    padding-top: 18px;
+    border-top: 1px dashed #d7dcfb;
+}
+
+.kid-icon-btn,
+.kid-link-btn,
+.kid-primary-btn,
+.kid-secondary-btn {
+    min-height: 56px;
+    border-radius: 14px;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.kid-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+}
+
+.kid-link-btn {
+    border-width: 2px;
+}
+
+.kid-input {
+    min-height: 50px;
+    font-size: 16px;
+}
+
+.choice-grid-item,
+.color-grid-item {
+    display: flex;
+}
+
+.kid-choice-btn,
+.kid-color-btn {
+    min-height: 88px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    line-height: 1.25;
+    font-size: 1.25rem;
+    font-weight: bold;
 }
 
 /* Picker Groups */
@@ -101,7 +177,7 @@ body {
 
 .choice-btn {
     padding: 20px;
-    font-size: 18px;
+    font-size: 20px;
     font-family: 'ABeeZee', sans-serif;
     border: 3px solid #667eea;
     background: white;
@@ -134,7 +210,7 @@ body {
 
 .color-btn {
     padding: 20px;
-    font-size: 16px;
+    font-size: 18px;
     font-family: 'ABeeZee', sans-serif;
     font-weight: bold;
     border: 3px solid transparent;
@@ -383,7 +459,7 @@ body {
 
 .control-button {
     padding: 18px;
-    font-size: 16px;
+    font-size: 18px;
     font-family: 'ABeeZee', sans-serif;
     font-weight: bold;
     border: 2px solid #667eea;
@@ -489,13 +565,17 @@ body {
 
 /* ===== Small phones (< 768px) ===== */
 @media (max-width: 767px) {
+    body {
+        padding: 12px;
+    }
+
     .container, .story-container {
         padding: 20px;
         border-radius: 20px;
     }
 
     .header h1, .story-header h1 {
-        font-size: 30px;
+        font-size: 2rem;
     }
 
     /* Stack text above image on small screens */
@@ -519,13 +599,62 @@ body {
     }
 
     .story-text {
-        font-size: 18px;
+        font-size: 1.2rem;
         padding: 20px;
+    }
+
+    .tap-hint {
+        font-size: 1.05rem;
+        margin-bottom: 14px;
+    }
+
+    .kid-choice-btn,
+    .kid-color-btn {
+        min-height: 92px;
+        font-size: 1.15rem;
+        padding: 14px 10px;
     }
 
     .generate-button {
         font-size: 22px;
         padding: 20px;
+    }
+
+    .app-header-top {
+        flex-direction: column;
+    }
+
+    .app-header-side,
+    .app-header-side-right {
+        width: 100%;
+        min-width: 0;
+        justify-content: center;
+    }
+
+    .kid-icon-btn,
+    .kid-link-btn,
+    .kid-primary-btn,
+    .kid-secondary-btn,
+    .settings-action-btn {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .settings-footer {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .provider-toggle {
+        gap: 10px;
+    }
+}
+
+@media (pointer: coarse) {
+    .choice-btn:hover,
+    .color-btn:hover,
+    .control-button:hover {
+        transform: none;
     }
 }
 
@@ -597,9 +726,14 @@ body {
 
 .settings-footer {
     display: flex;
+    flex-wrap: wrap;
     gap: 10px;
     justify-content: center;
     margin-top: 30px;
+}
+
+.settings-action-btn {
+    min-width: 200px;
 }
 
 .settings-button {
@@ -643,6 +777,7 @@ body {
 /* Provider Toggle Styles */
 .provider-toggle {
     display: flex;
+    flex-wrap: wrap;
     gap: 15px;
     margin: 15px 0;
 }
@@ -650,6 +785,7 @@ body {
 .radio-option {
     display: flex;
     align-items: center;
+    justify-content: center;
     cursor: pointer;
     padding: 12px 20px;
     border: 2px solid #ddd;
@@ -660,12 +796,20 @@ body {
     background: white;
 }
 
+.provider-toggle .radio-option {
+    flex: none;
+}
+
 .radio-option:hover {
     border-color: #667eea;
 }
 
 .radio-option input[type="radio"] {
     margin-right: 10px;
+}
+
+.radio-label {
+    font-size: 1.05rem;
 }
 
 .radio-option input[type="radio"]:checked + .radio-label {

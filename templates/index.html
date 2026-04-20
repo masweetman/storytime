@@ -1,65 +1,65 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Storybook">
-    <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
-    <title>🌟 Magical Storybook Generator 🌟</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="header-top">
-                <h1>✨ Your Magical Bedtime Story ✨</h1>
-                <a href="/settings" class="settings-button" title="Settings">⚙️</a>
-            </div>
-            <p class="subtitle">Pick a character to begin your adventure!</p>
-            <div style="text-align:center;margin-top:12px;">
-                <a href="/previous-stories" style="
-                    display:inline-block;
-                    padding:10px 24px;
-                    border-radius:20px;
-                    border:2px solid #667eea;
-                    color:#667eea;
-                    font-family:'ABeeZee',sans-serif;
-                    font-weight:bold;
-                    font-size:16px;
-                    text-decoration:none;
-                    transition:all 0.2s ease;
-                " onmouseover="this.style.background='#f0f0ff'" onmouseout="this.style.background='transparent'">
-                    📚 Previous Stories
-                </a>
-            </div>
-        </div>
+{% extends "base.html" %}
 
-        <div class="picker-section">
-            <!-- Character Selection -->
-            <div class="picker-group">
-                <h2>🦁 Pick a Character</h2>
-                <div class="button-grid">
-                    <button class="choice-btn" data-value="brave dragon">🐉 Dragon</button>
-                    <button class="choice-btn" data-value="fluffy bunny">🐰 Bunny</button>
-                    <button class="choice-btn" data-value="friendly robot">🤖 Robot</button>
-                    <button class="choice-btn" data-value="kind princess">👑 Princess</button>
-                    <button class="choice-btn" data-value="playful dinosaur">🦕 Dinosaur</button>
-                    <button class="choice-btn" data-value="wise owl">🦉 Owl</button>
-                    <button class="choice-btn" data-value="sneaky skunk">🦨 Skunk</button>
-                </div>
+{% block page_title %}🌟 Magical Storybook Generator 🌟{% endblock %}
+
+{% block page_heading %}✨ Your Magical Bedtime Story ✨{% endblock %}
+
+{% block page_subtitle %}
+<p class="subtitle text-center mb-3">Pick a character to begin your adventure!</p>
+{% endblock %}
+
+{% block content %}
+<div class="text-center mb-4">
+    <a href="/previous-stories" class="btn btn-outline-primary btn-lg kid-link-btn">
+        📚 Previous Stories
+    </a>
+</div>
+
+<div class="picker-section">
+    <div class="picker-group">
+        <h2>🦁 Pick a Character</h2>
+        <div class="row g-3 justify-content-center">
+            <div class="col-6 col-md-4 choice-grid-item">
+                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-value="brave dragon">🐉 Dragon</button>
+            </div>
+            <div class="col-6 col-md-4 choice-grid-item">
+                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-value="fluffy bunny">🐰 Bunny</button>
+            </div>
+            <div class="col-6 col-md-4 choice-grid-item">
+                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-value="friendly robot">🤖 Robot</button>
+            </div>
+            <div class="col-6 col-md-4 choice-grid-item">
+                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-value="kind princess">👑 Princess</button>
+            </div>
+            <div class="col-6 col-md-4 choice-grid-item">
+                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-value="playful dinosaur">🦕 Dinosaur</button>
+            </div>
+            <div class="col-6 col-md-4 choice-grid-item">
+                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-value="wise owl">🦉 Owl</button>
+            </div>
+            <div class="col-6 col-md-4 choice-grid-item">
+                <button class="choice-btn kid-choice-btn btn btn-outline-primary w-100" data-value="sneaky skunk">🦨 Skunk</button>
             </div>
         </div>
     </div>
+</div>
+{% endblock %}
 
-    <script>
-        document.querySelectorAll('.choice-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const character = btn.dataset.value;
-                window.location.href = `/places?character=${encodeURIComponent(character)}`;
-            });
+{% block page_scripts %}
+<script>
+    document.querySelectorAll('.choice-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const character = btn.dataset.value;
+            window.location.href = `/places?character=${encodeURIComponent(character)}`;
         });
-    </script>
-</body>
-</html>
+    });
+</script>
+{% endblock %}
+
+{% block page_bottom_actions %}
+<div class="page-bottom-actions text-center">
+    <a href="/settings" class="btn btn-outline-primary kid-icon-btn" title="Settings">
+        ⚙️ <span>Settings</span>
+    </a>
+</div>
+{% endblock %}

@@ -1,146 +1,130 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Storybook">
-    <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
-    <title>🌟 Your Bedtime Story 🌟</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body class="story-page">
-    <div class="story-container">
-        <div class="story-header">
-            <h1>📖 Your Magical Story 📖</h1>
-            <p class="story-meta" id="story-meta"></p>
-        </div>
+{% extends "base.html" %}
 
-        <div class="story-content">
-            <!-- Story Text -->
-            <div class="story-text-section">
-                <p id="story-text" class="story-text"></p>
-            </div>
+{% block page_title %}🌟 Your Bedtime Story 🌟{% endblock %}
 
-            <!-- Story Images -->
-            <div class="story-images" id="story-images"></div>
-        </div>
+{% block body_class %}story-page{% endblock %}
 
-        <!-- Story Controls -->
-        <div class="story-controls">
-            <button id="read-aloud-btn" class="control-button">
-                🔊 Read to Me
-            </button>
-            <button id="pause-btn" class="control-button hidden">
-                ⏸️ Pause
-            </button>
-            <button id="print-btn" class="control-button">
-                🖨️ Print Story
-            </button>
-            <button id="new-story-btn" class="control-button primary">
-                ✨ Create New Story ✨
-            </button>
-        </div>
+{% block body %}
+<div class="story-container">
+    <div class="story-header">
+        <h1>📖 Your Magical Story 📖</h1>
+        <p class="story-meta" id="story-meta"></p>
     </div>
 
-    <script>
-        // Get the story data from sessionStorage
-        const storyData = JSON.parse(sessionStorage.getItem('storyData') || '{}');
+    <div class="story-content">
+        <div class="story-text-section">
+            <p id="story-text" class="story-text"></p>
+        </div>
 
-        if (!storyData.story) {
-            window.location.href = '/';
-        }
+        <div class="story-images" id="story-images"></div>
+    </div>
 
-        // Display story metadata
-        document.getElementById('story-meta').textContent = 
-            `A story about a ${storyData.character} in a ${storyData.setting} 💜`;
+    <div class="story-controls d-grid gap-3">
+        <button id="read-aloud-btn" class="control-button btn btn-outline-primary w-100">
+            🔊 Read to Me
+        </button>
+        <button id="pause-btn" class="control-button btn btn-outline-primary w-100 hidden">
+            ⏸️ Pause
+        </button>
+        <button id="print-btn" class="control-button btn btn-outline-primary w-100">
+            🖨️ Print Story
+        </button>
+        <button id="new-story-btn" class="control-button primary btn btn-primary w-100 kid-primary-btn">
+            ✨ Create New Story ✨
+        </button>
+    </div>
+</div>
+{% endblock %}
 
-        // Display story text
-        document.getElementById('story-text').textContent = storyData.story;
+{% block page_scripts %}
+<script>
+    const storyData = JSON.parse(sessionStorage.getItem('storyData') || '{}');
 
-        // Display story images
-        const imagesContainer = document.getElementById('story-images');
-        storyData.images.forEach((imagePath, index) => {
-            const imgDiv = document.createElement('div');
-            imgDiv.className = 'story-image';
-            
-            const loadingSpinner = document.createElement('div');
-            loadingSpinner.className = 'image-loading';
-            loadingSpinner.innerHTML = `
-                <div class="image-spinner"></div>
-                <p>Loading image ${index + 1}...</p>
+    if (!storyData.story) {
+        window.location.href = '/';
+    }
+
+    document.getElementById('story-meta').textContent =
+        `A story about a ${storyData.character} in a ${storyData.setting} 💜`;
+
+    document.getElementById('story-text').textContent = storyData.story;
+
+    const imagesContainer = document.getElementById('story-images');
+    storyData.images.forEach((imagePath, index) => {
+        const imgDiv = document.createElement('div');
+        imgDiv.className = 'story-image';
+
+        const loadingSpinner = document.createElement('div');
+        loadingSpinner.className = 'image-loading';
+        loadingSpinner.innerHTML = `
+            <div class="image-spinner"></div>
+            <p>Loading image ${index + 1}...</p>
+        `;
+        imgDiv.appendChild(loadingSpinner);
+
+        const img = document.createElement('img');
+        img.src = imagePath;
+        img.alt = `Story illustration ${index + 1}`;
+
+        img.onload = () => {
+            imgDiv.innerHTML = '';
+            imgDiv.appendChild(img);
+        };
+
+        img.onerror = () => {
+            imgDiv.innerHTML = `
+                <div class="image-error">
+                    <p>📷 Image unavailable</p>
+                    <small>Image generation may have failed. Try creating a new story!</small>
+                </div>
             `;
-            imgDiv.appendChild(loadingSpinner);
-            
-            const img = document.createElement('img');
-            img.src = imagePath;
-            img.alt = `Story illustration ${index + 1}`;
-            
-            img.onload = () => {
-                imgDiv.innerHTML = '';
-                imgDiv.appendChild(img);
+        };
+
+        console.log(`Loading image: ${imagePath}`);
+
+        imagesContainer.appendChild(imgDiv);
+    });
+
+    let isReading = false;
+    const readAloudBtn = document.getElementById('read-aloud-btn');
+    const pauseBtn = document.getElementById('pause-btn');
+    const storyText = storyData.story;
+
+    readAloudBtn.addEventListener('click', () => {
+        if (!isReading) {
+            isReading = true;
+            readAloudBtn.classList.add('hidden');
+            pauseBtn.classList.remove('hidden');
+
+            const utterance = new SpeechSynthesisUtterance(storyText);
+            utterance.rate = 0.8;
+            utterance.pitch = 1.2;
+            utterance.volume = 1;
+
+            utterance.onend = () => {
+                isReading = false;
+                readAloudBtn.classList.remove('hidden');
+                pauseBtn.classList.add('hidden');
             };
-            
-            img.onerror = () => {
-                imgDiv.innerHTML = `
-                    <div class="image-error">
-                        <p>📷 Image unavailable</p>
-                        <small>Image generation may have failed. Try creating a new story!</small>
-                    </div>
-                `;
-            };
-            
-            console.log(`Loading image: ${imagePath}`);
-            
-            imagesContainer.appendChild(imgDiv);
-        });
 
-        // Text-to-speech functionality
-        let isReading = false;
-        const readAloudBtn = document.getElementById('read-aloud-btn');
-        const pauseBtn = document.getElementById('pause-btn');
-        const storyText = storyData.story;
+            speechSynthesis.speak(utterance);
+        }
+    });
 
-        readAloudBtn.addEventListener('click', () => {
-            if (!isReading) {
-                isReading = true;
-                readAloudBtn.classList.add('hidden');
-                pauseBtn.classList.remove('hidden');
+    pauseBtn.addEventListener('click', () => {
+        speechSynthesis.cancel();
+        isReading = false;
+        readAloudBtn.classList.remove('hidden');
+        pauseBtn.classList.add('hidden');
+    });
 
-                // Use Web Speech API
-                const utterance = new SpeechSynthesisUtterance(storyText);
-                utterance.rate = 0.8; // Slightly slower for kids
-                utterance.pitch = 1.2;
-                utterance.volume = 1;
+    document.getElementById('print-btn').addEventListener('click', () => {
+        window.print();
+    });
 
-                utterance.onend = () => {
-                    isReading = false;
-                    readAloudBtn.classList.remove('hidden');
-                    pauseBtn.classList.add('hidden');
-                };
-
-                speechSynthesis.speak(utterance);
-            }
-        });
-
-        pauseBtn.addEventListener('click', () => {
-            speechSynthesis.cancel();
-            isReading = false;
-            readAloudBtn.classList.remove('hidden');
-            pauseBtn.classList.add('hidden');
-        });
-
-        // Print functionality
-        document.getElementById('print-btn').addEventListener('click', () => {
-            window.print();
-        });
-
-        // New story button
-        document.getElementById('new-story-btn').addEventListener('click', () => {
-            sessionStorage.removeItem('storyData');
-            window.location.href = '/';
-        });
-    </script>
-</body>
-</html>
+    document.getElementById('new-story-btn').addEventListener('click', () => {
+        sessionStorage.removeItem('storyData');
+        window.location.href = '/';
+    });
+</script>
+{% endblock %}

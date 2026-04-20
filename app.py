@@ -322,8 +322,16 @@ def api_config():
 @app.route('/api/openrouter/models', methods=['GET', 'POST'])
 @require_auth_api
 def get_openrouter_models():
-    """Fetch available OpenRouter models using stored API key"""
-    api_key = get_setting('openrouter_api_key', '')
+    """Fetch available OpenRouter models using provided or stored API key"""
+    provided_api_key = ''
+    api_key = ''
+    if request.method == 'POST' and request.json:
+        provided_api_key = (request.json.get('api_key', '') or '').strip()
+        api_key = provided_api_key
+
+    if not api_key:
+        api_key = get_setting('openrouter_api_key', '')
+
     if not api_key:
         return jsonify({'success': False, 'error': 'OpenRouter API key not set'}), 400
     try:
@@ -349,6 +357,11 @@ def get_openrouter_models():
                         models.append(m['id'])
         # Sort models by name
         models.sort()
+
+        if provided_api_key:
+            # Persist only after successful validation against OpenRouter.
+            set_setting('openrouter_api_key', provided_api_key)
+
         return jsonify({'success': True, 'models': models})
     except Exception as e:
         return jsonify({'success': False, 'error': f'Error fetching models: {str(e)}'}), 500
@@ -357,8 +370,13 @@ def get_openrouter_models():
 @app.route('/api/openrouter/test-connection', methods=['POST'])
 @require_auth_api
 def test_openrouter_connection():
-    """Test OpenRouter connection with the provided API key"""
-    api_key = request.json.get('api_key', '') if request.json else ''
+    """Test OpenRouter connection with provided or stored API key"""
+    provided_api_key = (request.json.get('api_key', '') if request.json else '') or ''
+    provided_api_key = provided_api_key.strip()
+    api_key = provided_api_key
+
+    if not api_key:
+        api_key = get_setting('openrouter_api_key', '')
     
     if not api_key:
         return jsonify({'success': False, 'error': 'OpenRouter API key not provided'}), 400
@@ -371,6 +389,9 @@ def test_openrouter_connection():
         }, timeout=10)
         
         if resp.status_code == 200:
+            if provided_api_key:
+                # Persist only after successful validation.
+                set_setting('openrouter_api_key', provided_api_key)
             return jsonify({'success': True, 'message': 'Connection successful'})
         else:
             return jsonify({'success': False, 'error': f'OpenRouter returned {resp.status_code}: {resp.text[:100]}'}), resp.status_code
@@ -384,6 +405,7 @@ def api_settings():
     if request.method == 'GET':
         # Return all settings
         settings = get_all_settings()
+        settings['openrouter_api_key_set'] = bool(settings.get('openrouter_api_key'))
         return jsonify(settings)
     
     # POST — save settings

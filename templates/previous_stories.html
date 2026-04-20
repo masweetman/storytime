@@ -1,15 +1,29 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Storybook">
-    <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
-    <title>📚 Previous Stories</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <style>
+{% extends "base.html" %}
+
+{% block page_title %}📚 Previous Stories{% endblock %}
+
+{% block container_extra_class %}stories-container{% endblock %}
+
+{% block page_heading %}📚 Previous Stories{% endblock %}
+
+{% block nav_left %}
+<a href="/" class="btn btn-outline-primary kid-icon-btn" title="Home">
+    🏠 <span>Home</span>
+</a>
+{% endblock %}
+
+{% block page_subtitle %}
+<p class="subtitle text-center">
+    {% if stories %}
+        {{ stories|length }} stor{{ 'y' if stories|length == 1 else 'ies' }} saved
+    {% else %}
+        No stories yet - go make one!
+    {% endif %}
+</p>
+{% endblock %}
+
+{% block extra_css %}
+<style>
         /* ── Previous Stories page ── */
         .stories-grid {
             display: grid;
@@ -265,23 +279,9 @@
             }
         }
     </style>
-</head>
-<body>
-    <div class="container" style="max-width: 1100px;">
-        <div class="header">
-            <div class="header-top">
-                <a href="/" class="back-button" title="Home">🏠</a>
-                <h1>📚 Previous Stories</h1>
-                <a href="/settings" class="settings-button" title="Settings">⚙️</a>
-            </div>
-            <p class="subtitle">
-                {% if stories %}
-                    {{ stories|length }} stor{{ 'y' if stories|length == 1 else 'ies' }} saved
-                {% else %}
-                    No stories yet — go make one!
-                {% endif %}
-            </p>
-        </div>
+{% endblock %}
+
+{% block content %}
 
         {% if stories %}
         <div class="stories-grid">
@@ -312,12 +312,12 @@
             <div class="empty-icon">📖</div>
             <p>No stories saved yet.</p>
             <br>
-            <a href="/" class="generate-button" style="display:inline-block;width:auto;padding:18px 40px;text-decoration:none;font-size:22px;">
+            <a href="/" class="generate-button btn btn-primary kid-primary-btn" style="display:inline-block;width:auto;padding:18px 40px;text-decoration:none;font-size:22px;">
                 ✨ Create Your First Story
             </a>
         </div>
         {% endif %}
-    </div>
+    
 
     <!-- Full-story modal -->
     <div class="story-modal hidden" id="story-modal" onclick="closeStoryIfBackdrop(event)">
@@ -343,6 +343,9 @@
         </div>
     </div>
 
+{% endblock %}
+
+{% block page_scripts %}
     <script>
         // Embed all story data from the server
         const ALL_STORIES = {{ stories_json | safe }};
@@ -445,5 +448,4 @@
             if (e.key === 'Escape') closeStory();
         });
     </script>
-</body>
-</html>
+{% endblock %}
