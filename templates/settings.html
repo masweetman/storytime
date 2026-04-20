@@ -143,6 +143,29 @@
                 </div>
             </div>
 
+            <div class="settings-section">
+                <h2>🔊 Read-Aloud Voice</h2>
+
+                <div class="settings-group">
+                    <label for="tts-locale">Locale:</label>
+                    <select id="tts-locale" class="form-select kid-input">
+                        <option value="en-us">American English</option>
+                        <option value="en-uk">British English</option>
+                        <option value="en-au">Australian English</option>
+                    </select>
+                    <p class="hint">Choose the accent used when the app reads stories aloud.</p>
+                </div>
+
+                <div class="settings-group">
+                    <label for="tts-slow">Slow:</label>
+                    <select id="tts-slow" class="form-select kid-input">
+                        <option value="false">False</option>
+                        <option value="true">True</option>
+                    </select>
+                    <p class="hint">Set slow to True for a gentler narration pace.</p>
+                </div>
+            </div>
+
             <!-- Story Prompt Section -->
             <div class="settings-section">
                 <h2>📖 Story Generation Prompt</h2>
@@ -243,6 +266,8 @@
         
         const ollamaHostInput = document.getElementById('ollama-host');
         const ollamaModelInput = document.getElementById('ollama-model');
+        const ttsLocaleInput = document.getElementById('tts-locale');
+        const ttsSlowInput = document.getElementById('tts-slow');
         const storyPromptInput = document.getElementById('story-prompt');
         const testOllamaBtn = document.getElementById('test-ollama-btn');
         const resetPromptBtn = document.getElementById('reset-prompt-btn');
@@ -280,6 +305,8 @@
                 // Populate fields
                 ollamaHostInput.value = settings.ollama_host || '';
                 ollamaModelInput.value = settings.ollama_model || '';
+                ttsLocaleInput.value = settings.tts_locale || 'en-us';
+                ttsSlowInput.value = settings.tts_slow || 'false';
                 storyPromptInput.value = settings.story_prompt || '';
                 
                 // Populate OpenRouter fields if available
@@ -416,6 +443,8 @@
             const settings = {
                 ollama_host: ollamaHostInput.value.trim(),
                 ollama_model: ollamaModelInput.value.trim(),
+                tts_locale: ttsLocaleInput.value,
+                tts_slow: ttsSlowInput.value,
                 story_prompt: storyPromptInput.value.trim()
             };
 

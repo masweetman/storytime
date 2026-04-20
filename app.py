@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory, abort, session, redirect, url_for, make_response
+from flask import Flask, render_template, request, jsonify, send_from_directory, abort, session, redirect, url_for, make_response, send_file
 import json
 import requests
 import re
@@ -6,16 +6,20 @@ import os
 import uuid
 import secrets
 import functools
+from io import BytesIO
 from urllib.parse import quote as url_quote
 from dotenv import load_dotenv
 from pathlib import Path
 import sqlite3
 from contextlib import contextmanager
 from datetime import timedelta
+from gtts import gTTS
+from flask_gtts import gtts as FlaskGTTS
 
 load_dotenv()
 
 app = Flask(__name__, instance_path=str(Path(__file__).parent / 'instance'))
+FlaskGTTS(app)
 
 # ─── Secret key (persisted so sessions survive restarts) ──────────────────────
 _secret_key_file = Path(app.instance_path) / 'secret_key'
@@ -43,21 +47,33 @@ DEFAULT_SETTINGS = {
     'ollama_model': 'gemma2:2b',
     'llm_provider': 'ollama',
     'openrouter_api_key': '',
-    'openrouter_model': 'openai/gpt-4o-mini',
+    'openrouter_model': 'openrouter/free',
+    'tts_locale': 'en-uk',
+    'tts_slow': 'true',
     'password': '',
-    'story_prompt': '''Write a short, gentle bedtime story for a 3-year-old child (about 150 words).
+    'story_prompt': '''You are an engaging storyteller. Write a short, exciting adventure story for a 3-year-old child (about 150 words).
 
 Main character: A {character}
 Setting: {setting}
 Favorite color: {colour}
 
 The story should:
-- Be simple and calming
-- Have a happy ending
-- End with the character falling asleep or getting ready for bed
-- Use rhyming or rhythmic language where possible
+- Use natural language
+- Involve the character and a friend going on an adventure
+- Minimize alliteration, rhyme, and rhythm, but do not eliminate them completely.
 
 Story:'''
+}
+
+TTS_LOCALE_CONFIG = {
+    'en-us': {'lang': 'en', 'tld': 'com'},
+    'en-uk': {'lang': 'en', 'tld': 'co.uk'},
+    'en-au': {'lang': 'en', 'tld': 'com.au'},
+}
+
+TTS_SLOW_CONFIG = {
+    'true': True,
+    'false': False,
 }
 
 @contextmanager
@@ -119,6 +135,16 @@ def get_all_settings():
     with get_db() as conn:
         rows = conn.execute('SELECT key, value FROM settings').fetchall()
         return {row['key']: row['value'] for row in rows}
+
+def get_tts_locale(locale=None):
+    """Return a valid stored TTS locale value."""
+    locale_value = (locale or DEFAULT_SETTINGS['tts_locale']).lower()
+    return locale_value if locale_value in TTS_LOCALE_CONFIG else DEFAULT_SETTINGS['tts_locale']
+
+def get_tts_slow_value(slow_value=None):
+    """Return the configured gTTS slow boolean."""
+    normalized_value = str(slow_value or DEFAULT_SETTINGS['tts_slow']).lower()
+    return TTS_SLOW_CONFIG.get(normalized_value, False)
 
 def save_story(character, setting, colour, story_text, image_path):
     """Persist a generated story to the database"""
@@ -262,6 +288,8 @@ def settings():
         openrouter_api_key = request.form.get('openrouter_api_key', '')
         openrouter_model = request.form.get('openrouter_model', '')
         llm_provider = request.form.get('llm_provider', 'ollama')
+        tts_locale = request.form.get('tts_locale', DEFAULT_SETTINGS['tts_locale'])
+        tts_slow = request.form.get('tts_slow', DEFAULT_SETTINGS['tts_slow'])
         story_prompt = request.form.get('story_prompt', '')
 
         if password:
@@ -276,6 +304,8 @@ def settings():
             set_setting('openrouter_model', openrouter_model)
         if llm_provider:
             set_setting('llm_provider', llm_provider)
+        set_setting('tts_locale', get_tts_locale(tts_locale))
+        set_setting('tts_slow', 'true' if get_tts_slow_value(tts_slow) else 'false')
         if story_prompt:
             set_setting('story_prompt', story_prompt)
 
@@ -398,6 +428,41 @@ def test_openrouter_connection():
     except Exception as e:
         return jsonify({'success': False, 'error': f'Connection failed: {str(e)}'}), 500
 
+@app.route('/api/tts', methods=['POST'])
+@require_auth_api
+def api_tts():
+    """Generate TTS audio for story text using gTTS."""
+    if not request.json:
+        return jsonify({'success': False, 'error': 'Invalid JSON'}), 400
+
+    text = (request.json.get('text', '') or '').strip()
+    if not text:
+        return jsonify({'success': False, 'error': 'No text provided'}), 400
+
+    locale = get_tts_locale(get_setting('tts_locale', DEFAULT_SETTINGS['tts_locale']))
+    locale_config = TTS_LOCALE_CONFIG[locale]
+    slow_value = get_tts_slow_value(get_setting('tts_slow', DEFAULT_SETTINGS['tts_slow']))
+    audio_buffer = BytesIO()
+
+    try:
+        tts_audio = gTTS(
+            text=text,
+            lang=locale_config['lang'],
+            tld=locale_config['tld'],
+            slow=slow_value,
+        )
+        tts_audio.write_to_fp(audio_buffer)
+        audio_buffer.seek(0)
+        return send_file(
+            audio_buffer,
+            mimetype='audio/mpeg',
+            as_attachment=False,
+            download_name='story.mp3',
+            max_age=0,
+        )
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Failed to generate audio: {str(e)}'}), 500
+
 @app.route('/api/settings', methods=['GET', 'POST'])
 @require_auth_api
 def api_settings():
@@ -427,6 +492,10 @@ def api_settings():
         set_setting('openrouter_model', data['openrouter_model'])
     if 'llm_provider' in data and data['llm_provider']:
         set_setting('llm_provider', data['llm_provider'])
+    if 'tts_locale' in data:
+        set_setting('tts_locale', get_tts_locale(data['tts_locale']))
+    if 'tts_slow' in data:
+        set_setting('tts_slow', 'true' if get_tts_slow_value(data['tts_slow']) else 'false')
     if 'story_prompt' in data and data['story_prompt']:
         set_setting('story_prompt', data['story_prompt'])
     

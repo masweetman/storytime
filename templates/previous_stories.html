@@ -351,32 +351,79 @@
         const ALL_STORIES = {{ stories_json | safe }};
 
         // ── Text-to-speech state ──
-        let modalIsReading = false;
         let currentStoryText = '';
+        let modalAudioPlayer = null;
+        let modalAudioUrl = null;
 
         const modalReadBtn  = document.getElementById('modal-read-aloud-btn');
         const modalPauseBtn = document.getElementById('modal-pause-btn');
 
-        modalReadBtn.addEventListener('click', () => {
-            if (!modalIsReading && currentStoryText) {
-                modalIsReading = true;
+        function cleanupModalAudio() {
+            if (modalAudioPlayer) {
+                modalAudioPlayer.pause();
+                modalAudioPlayer.src = '';
+                modalAudioPlayer = null;
+            }
+
+            if (modalAudioUrl) {
+                URL.revokeObjectURL(modalAudioUrl);
+                modalAudioUrl = null;
+            }
+        }
+
+        async function startModalAudio() {
+            if (!currentStoryText || modalAudioPlayer) {
+                return;
+            }
+
+            modalReadBtn.disabled = true;
+            modalReadBtn.textContent = '⏳ Loading...';
+
+            try {
+                const response = await fetch('/api/tts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: currentStoryText })
+                });
+
+                if (!response.ok) {
+                    let errorMessage = 'Unable to generate audio right now.';
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.error || errorMessage;
+                    } catch (error) {
+                        console.error('Failed to parse modal TTS error response:', error);
+                    }
+                    throw new Error(errorMessage);
+                }
+
+                const audioBlob = await response.blob();
+                cleanupModalAudio();
+
+                modalAudioUrl = URL.createObjectURL(audioBlob);
+                modalAudioPlayer = new Audio(modalAudioUrl);
+                modalAudioPlayer.addEventListener('ended', stopSpeech);
+                modalAudioPlayer.addEventListener('error', stopSpeech);
+
+                await modalAudioPlayer.play();
+
                 modalReadBtn.classList.add('hidden');
                 modalPauseBtn.classList.remove('hidden');
-
-                const utterance = new SpeechSynthesisUtterance(currentStoryText);
-                utterance.rate   = 0.8;
-                utterance.pitch  = 1.2;
-                utterance.volume = 1;
-
-                utterance.onend = () => {
-                    modalIsReading = false;
-                    modalReadBtn.classList.remove('hidden');
-                    modalPauseBtn.classList.add('hidden');
-                };
-
-                speechSynthesis.speak(utterance);
+            } catch (error) {
+                console.error('Modal read-aloud failed:', error);
+                cleanupModalAudio();
+                modalReadBtn.classList.remove('hidden');
+                modalPauseBtn.classList.add('hidden');
+                alert(error.message || 'Unable to read this story aloud right now.');
+            } finally {
+                modalReadBtn.disabled = false;
+                if (!modalAudioPlayer) {
+                    modalReadBtn.textContent = '🔊 Read to Me';
+                }
             }
-        });
+        }
+
+        modalReadBtn.addEventListener('click', startModalAudio);
 
         modalPauseBtn.addEventListener('click', stopSpeech);
 
@@ -385,8 +432,14 @@
         });
 
         function stopSpeech() {
-            speechSynthesis.cancel();
-            modalIsReading = false;
+            if (modalAudioPlayer) {
+                modalAudioPlayer.pause();
+                modalAudioPlayer.currentTime = 0;
+            }
+
+            cleanupModalAudio();
+            modalReadBtn.disabled = false;
+            modalReadBtn.textContent = '🔊 Read to Me';
             modalReadBtn.classList.remove('hidden');
             modalPauseBtn.classList.add('hidden');
         }

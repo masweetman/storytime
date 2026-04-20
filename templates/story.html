@@ -85,37 +85,116 @@
         imagesContainer.appendChild(imgDiv);
     });
 
-    let isReading = false;
     const readAloudBtn = document.getElementById('read-aloud-btn');
     const pauseBtn = document.getElementById('pause-btn');
     const storyText = storyData.story;
+    let audioPlayer = null;
+    let audioUrl = null;
+
+    function cleanupAudio() {
+        if (audioPlayer) {
+            audioPlayer.pause();
+            audioPlayer.src = '';
+            audioPlayer = null;
+        }
+
+        if (audioUrl) {
+            URL.revokeObjectURL(audioUrl);
+            audioUrl = null;
+        }
+    }
+
+    function resetAudioControls() {
+        readAloudBtn.disabled = false;
+        readAloudBtn.textContent = '🔊 Read to Me';
+        readAloudBtn.classList.remove('hidden');
+        pauseBtn.textContent = '⏸️ Pause';
+        pauseBtn.classList.add('hidden');
+    }
+
+    function stopAudio() {
+        if (audioPlayer) {
+            audioPlayer.pause();
+            audioPlayer.currentTime = 0;
+        }
+
+        cleanupAudio();
+        resetAudioControls();
+    }
+
+    async function startAudioPlayback() {
+        readAloudBtn.disabled = true;
+        readAloudBtn.textContent = '⏳ Loading...';
+
+        try {
+            const response = await fetch('/api/tts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: storyText })
+            });
+
+            if (!response.ok) {
+                let errorMessage = 'Unable to generate audio right now.';
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.error || errorMessage;
+                } catch (error) {
+                    console.error('Failed to parse TTS error response:', error);
+                }
+                throw new Error(errorMessage);
+            }
+
+            const audioBlob = await response.blob();
+            cleanupAudio();
+
+            audioUrl = URL.createObjectURL(audioBlob);
+            audioPlayer = new Audio(audioUrl);
+            audioPlayer.addEventListener('ended', stopAudio);
+            audioPlayer.addEventListener('error', stopAudio);
+
+            await audioPlayer.play();
+
+            readAloudBtn.classList.add('hidden');
+            pauseBtn.textContent = '⏸️ Pause';
+            pauseBtn.classList.remove('hidden');
+        } catch (error) {
+            console.error('Read-aloud failed:', error);
+            cleanupAudio();
+            resetAudioControls();
+            alert(error.message || 'Unable to read the story aloud right now.');
+        } finally {
+            readAloudBtn.disabled = false;
+            if (!audioPlayer) {
+                readAloudBtn.textContent = '🔊 Read to Me';
+            }
+        }
+    }
 
     readAloudBtn.addEventListener('click', () => {
-        if (!isReading) {
-            isReading = true;
-            readAloudBtn.classList.add('hidden');
-            pauseBtn.classList.remove('hidden');
-
-            const utterance = new SpeechSynthesisUtterance(storyText);
-            utterance.rate = 0.8;
-            utterance.pitch = 1.2;
-            utterance.volume = 1;
-
-            utterance.onend = () => {
-                isReading = false;
-                readAloudBtn.classList.remove('hidden');
-                pauseBtn.classList.add('hidden');
-            };
-
-            speechSynthesis.speak(utterance);
+        if (!audioPlayer) {
+            startAudioPlayback();
         }
     });
 
-    pauseBtn.addEventListener('click', () => {
-        speechSynthesis.cancel();
-        isReading = false;
-        readAloudBtn.classList.remove('hidden');
-        pauseBtn.classList.add('hidden');
+    pauseBtn.addEventListener('click', async () => {
+        if (!audioPlayer) {
+            resetAudioControls();
+            return;
+        }
+
+        if (audioPlayer.paused) {
+            try {
+                await audioPlayer.play();
+                pauseBtn.textContent = '⏸️ Pause';
+            } catch (error) {
+                console.error('Failed to resume audio:', error);
+                stopAudio();
+            }
+            return;
+        }
+
+        audioPlayer.pause();
+        pauseBtn.textContent = '▶️ Resume';
     });
 
     document.getElementById('print-btn').addEventListener('click', () => {
@@ -123,8 +202,11 @@
     });
 
     document.getElementById('new-story-btn').addEventListener('click', () => {
+        stopAudio();
         sessionStorage.removeItem('storyData');
         window.location.href = '/';
     });
+
+    window.addEventListener('beforeunload', stopAudio);
 </script>
 {% endblock %}
