@@ -53,6 +53,7 @@ DEFAULT_SETTINGS = {
     'llm_provider': 'ollama',
     'openrouter_api_key': '',
     'openrouter_model': 'openrouter/free',
+    'story_limit': '50',
     'tts_locale': 'en-uk',
     'tts_slow': 'true',
     'password': '',
@@ -194,6 +195,77 @@ def get_tts_slow_value(slow_value=None):
     normalized_value = str(slow_value or DEFAULT_SETTINGS['tts_slow']).lower()
     return TTS_SLOW_CONFIG.get(normalized_value, False)
 
+def normalize_story_limit(limit_value, default=None):
+    """Return a validated story limit or the provided default."""
+    try:
+        normalized_value = int(str(limit_value).strip())
+    except (AttributeError, TypeError, ValueError):
+        return default
+
+    return normalized_value if normalized_value >= 1 else default
+
+def get_story_limit():
+    """Return the configured maximum number of saved stories."""
+    default_limit = int(DEFAULT_SETTINGS['story_limit'])
+    return normalize_story_limit(
+        get_setting('story_limit', DEFAULT_SETTINGS['story_limit']),
+        default=default_limit,
+    )
+
+def delete_story_assets(story, silent=False):
+    """Delete image and audio files associated with a story."""
+    for path_key, directory in (('image_path', IMAGES_DIR), ('audio_path', AUDIO_DIR)):
+        asset_path = (story or {}).get(path_key)
+        if not asset_path:
+            continue
+
+        asset_file = directory / Path(asset_path).name
+        if not asset_file.exists():
+            continue
+
+        try:
+            asset_file.unlink()
+            if not silent:
+                print(f"🗑️  Deleted {path_key.replace('_path', '')} file: {asset_file}")
+        except OSError as exc:
+            print(f"⚠️  Failed to delete {asset_file}: {exc}")
+
+def delete_story_record(story_id, silent=False):
+    """Delete a story row and any associated files. Returns True if a story was removed."""
+    story = get_story_by_id(story_id)
+    if not story:
+        return False
+
+    delete_story_assets(story, silent=silent)
+
+    with get_db() as conn:
+        conn.execute('DELETE FROM stories WHERE id = ?', (story_id,))
+
+    if not silent:
+        print(f"🗑️  Deleted story {story_id} from database")
+
+    return True
+
+def prune_stories_to_limit(limit=None):
+    """Delete the oldest saved stories until the configured cap is met."""
+    max_stories = normalize_story_limit(limit, default=get_story_limit())
+
+    with get_db() as conn:
+        story_ids = [
+            row['id']
+            for row in conn.execute(
+                'SELECT id FROM stories ORDER BY created_at ASC, id ASC'
+            ).fetchall()
+        ]
+
+    overflow_count = max(0, len(story_ids) - max_stories)
+    deleted_count = 0
+    for story_id in story_ids[:overflow_count]:
+        if delete_story_record(story_id, silent=True):
+            deleted_count += 1
+
+    return deleted_count
+
 def save_story(character, setting, colour, story_text, image_path, audio_path=None):
     """Persist a generated story to the database"""
     with get_db() as conn:
@@ -202,7 +274,10 @@ def save_story(character, setting, colour, story_text, image_path, audio_path=No
                VALUES (?, ?, ?, ?, ?, ?)''',
             (character, setting, colour, story_text, image_path, audio_path)
         )
-        return cursor.lastrowid
+        story_id = cursor.lastrowid
+
+    prune_stories_to_limit()
+    return story_id
 
 def get_all_stories():
     """Return all saved stories, newest first"""
@@ -339,9 +414,17 @@ def settings():
         openrouter_api_key = request.form.get('openrouter_api_key', '')
         openrouter_model = request.form.get('openrouter_model', '')
         llm_provider = request.form.get('llm_provider', 'ollama')
+        story_limit = request.form.get('story_limit', DEFAULT_SETTINGS['story_limit'])
         tts_locale = request.form.get('tts_locale', DEFAULT_SETTINGS['tts_locale'])
         tts_slow = request.form.get('tts_slow', DEFAULT_SETTINGS['tts_slow'])
         story_prompt = request.form.get('story_prompt', '')
+        normalized_story_limit = normalize_story_limit(story_limit)
+
+        if normalized_story_limit is None:
+            settings_dict = get_all_settings()
+            settings_dict['story_limit'] = story_limit
+            error_message = 'Story limit must be a whole number of at least 1.'
+            return render_template('settings.html', settings=settings_dict, error_message=error_message), 400
 
         if password:
             set_setting('password', password)
@@ -355,10 +438,13 @@ def settings():
             set_setting('openrouter_model', openrouter_model)
         if llm_provider:
             set_setting('llm_provider', llm_provider)
+        set_setting('story_limit', str(normalized_story_limit))
         set_setting('tts_locale', get_tts_locale(tts_locale))
         set_setting('tts_slow', 'true' if get_tts_slow_value(tts_slow) else 'false')
         if story_prompt:
             set_setting('story_prompt', story_prompt)
+
+        prune_stories_to_limit(normalized_story_limit)
 
         return redirect(url_for('settings'))
 
@@ -573,6 +659,12 @@ def api_settings():
         set_setting('openrouter_model', data['openrouter_model'])
     if 'llm_provider' in data and data['llm_provider']:
         set_setting('llm_provider', data['llm_provider'])
+    if 'story_limit' in data:
+        normalized_story_limit = normalize_story_limit(data['story_limit'])
+        if normalized_story_limit is None:
+            return jsonify({'success': False, 'error': 'Story limit must be a whole number of at least 1'}), 400
+        set_setting('story_limit', str(normalized_story_limit))
+        prune_stories_to_limit(normalized_story_limit)
     if 'tts_locale' in data:
         set_setting('tts_locale', get_tts_locale(data['tts_locale']))
     if 'tts_slow' in data:
@@ -600,31 +692,11 @@ def delete_story(story_id):
     """Delete a story and its associated files (image, audio) from disk."""
     @require_auth_api
     def _delete():
-        story = get_story_by_id(story_id)
-        if not story:
+        if not get_story_by_id(story_id):
             return jsonify({'success': False, 'error': 'Story not found'}), 404
         
         try:
-            # Delete image file if it exists
-            if story.get('image_path'):
-                image_filename = story['image_path'].split('/')[-1]
-                image_file = IMAGES_DIR / image_filename
-                if image_file.exists():
-                    image_file.unlink()
-                    print(f"🗑️  Deleted image file: {image_file}")
-            
-            # Delete audio file if it exists
-            if story.get('audio_path'):
-                audio_filename = story['audio_path'].split('/')[-1]
-                audio_file = AUDIO_DIR / audio_filename
-                if audio_file.exists():
-                    audio_file.unlink()
-                    print(f"🗑️  Deleted audio file: {audio_file}")
-            
-            # Delete story from database
-            with get_db() as conn:
-                conn.execute('DELETE FROM stories WHERE id = ?', (story_id,))
-            print(f"🗑️  Deleted story {story_id} from database")
+            delete_story_record(story_id)
             
             return jsonify({'success': True, 'message': 'Story deleted'})
         
@@ -670,6 +742,10 @@ def download_and_save_image(prompt):
 def save_audio_file(text, story_id):
     """Generate and save audio MP3 file for story text using user's TTS settings."""
     try:
+        if not get_story_by_id(story_id):
+            print(f"ℹ️  Skipping audio generation for deleted story {story_id}")
+            return None
+
         filename = f"{uuid.uuid4().hex}.mp3"
         print(f"🎵 Generating audio for story {story_id} (filename: {filename})...")
         
@@ -689,6 +765,13 @@ def save_audio_file(text, story_id):
         # Save to disk
         audio_path = AUDIO_DIR / filename
         tts_audio.save(str(audio_path))
+
+        if not get_story_by_id(story_id):
+            if audio_path.exists():
+                audio_path.unlink()
+            print(f"ℹ️  Removed generated audio for deleted story {story_id}")
+            return None
+
         print(f"✅ Saved audio for story {story_id} → {audio_path}")
         
         # Update database with audio_path
@@ -717,10 +800,18 @@ def generate_audio_background(text, story_id):
 def generate_story():
     """Generate a story using the selected LLM provider (Ollama or OpenRouter)"""
     data = request.json
-    character = data.get('character', 'dragon')
-    setting = data.get('setting', 'forest')
-    activity = data.get('activity', 'adventure')
-    colour = data.get('colour', 'blue')
+    
+    # Validate that required parameters are present and not null
+    character = (data.get('character') or '').strip() or None
+    setting = (data.get('setting') or '').strip() or None
+    activity = (data.get('activity') or '').strip() or None
+    colour = (data.get('colour') or '').strip() or None
+    
+    # Use defaults if any parameter is missing
+    character = character or 'dragon'
+    setting = setting or 'forest'
+    activity = activity or 'adventure'
+    colour = colour or 'blue'
 
     prompt_template = get_setting('story_prompt', DEFAULT_SETTINGS['story_prompt'])
     prompt = prompt_template.format(character=character, setting=setting, activity=activity, colour=colour)
@@ -744,7 +835,7 @@ def generate_story():
             if response.status_code != 200:
                 raise Exception(f"Ollama error: {response.text[:100]}")
             response_data = response.json()
-            story_text = response_data.get('response', '').strip()
+            story_text = (response_data.get('response') or '').strip()
         else:  # OpenRouter
             api_key = get_setting('openrouter_api_key', '')
             model = get_setting('openrouter_model', '')
@@ -774,13 +865,13 @@ def generate_story():
                 raise Exception(f"OpenRouter error: {response.text[:100]}")
             response_data = response.json()
             # OpenAI style response
-            story_text = response_data.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
+            story_text = (response_data.get('choices', [{}])[0].get('message', {}).get('content') or '').strip()
 
         if not story_text:
             return jsonify({'success': False, 'error': 'Generated story is empty'}), 500
 
         # Generate illustration via Pollinations.ai (same for both providers)
-        image_prompt = f"{character} in a {colour} {setting}, bedtime story illustration, cute cartoon style"
+        image_prompt = f"{character} in a {colour} {setting}, {activity}, story illustration, cute cartoon style"
         img_url = download_and_save_image(image_prompt)
         image_urls = [img_url] if img_url else []
 

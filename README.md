@@ -8,6 +8,7 @@ A delightful Flask app that generates custom illustrated bedtime stories for kid
 - **AI Story Generation** — Uses [Ollama](https://ollama.ai) (local LLM) to write a gentle, calming bedtime story
 - **AI Illustration** — [Pollinations.ai](https://pollinations.ai) generates a matching image; it is downloaded and stored locally so stories are always viewable offline
 - **Story History** — Browse all previously generated stories on the `/previous-stories` page
+- **Automatic Story Pruning** — Keep only the newest saved stories by setting a configurable history cap; older stories and their image/audio files are removed automatically
 - **Read-Aloud** — Browser Web Speech API reads the story aloud to kids
 - **Password Protection** — Optionally lock the app with a password (great for shared/family servers)
 - **Customisable Prompt** — Edit the story-generation prompt directly in the Settings UI
@@ -126,6 +127,14 @@ The prompt template can be edited live in **⚙️ Settings → 📖 Story Gener
 | `{colour}` | The chosen colour (e.g. `blue`) |
 
 Click **🔄 Reset to Default** to restore the original prompt at any time.
+
+---
+
+## 📚 Story History Cap
+
+Use **⚙️ Settings → 📚 Story Storage** to choose how many stories to keep in the database. The default is `50`.
+
+When a new story is created and the cap has been reached, the app silently deletes the oldest saved story and its associated illustration/audio files so storage stays bounded.
 
 ---
 

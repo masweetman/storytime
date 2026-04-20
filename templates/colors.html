@@ -59,6 +59,21 @@
     const loadingDiv = document.getElementById('loading');
     const errorDiv = document.getElementById('error');
 
+    // Validate that required parameters are present before allowing color selection
+    if (!character || !setting || !activity) {
+        document.querySelectorAll('.color-btn').forEach(btn => {
+            btn.disabled = true;
+            btn.title = 'Please start from the beginning by selecting a character, setting, and activity.';
+        });
+        loadingDiv.classList.add('hidden');
+        showError('⚠️ Missing story details. Please go back to the beginning and select a character, setting, and activity.');
+        
+        function showError(message) {
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+        }
+    }
+
     document.querySelectorAll('.color-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
             const colour = btn.dataset.value;
@@ -71,7 +86,7 @@
                 const response = await fetch('/api/generate-story', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ character, setting, colour })
+                    body: JSON.stringify({ character, setting, activity, colour })
                 });
 
                 const data = await response.json();
